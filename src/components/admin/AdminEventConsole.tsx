@@ -418,23 +418,23 @@ const handleStartRace = async () => {
     const now = new Date().toISOString();
 
     // Check whether this heat already exists
-    const { data: existingHeat, error: findError } = await supabase
-      .from('heats')
-      .select('id')
-      .eq('event_id', selectedEventId)
-      .eq('heat_number', activeHeat)
-      .maybeSingle();
+    const { data: existingHeat, error: findError } =
+      await supabase
+        .from('heats')
+        .select('id')
+        .eq('event_id', selectedEventId)
+        .eq('heat_number', activeHeat)
+        .maybeSingle();
 
     if (findError) {
       throw findError;
     }
 
     if (existingHeat) {
-      // Heat already exists - start it
+      // Heat already exists
       const { error } = await supabase
         .from('heats')
         .update({
-          status: 'running',
           race_status: 'running',
           race_started_at: now,
         })
@@ -444,18 +444,22 @@ const handleStartRace = async () => {
         throw error;
       }
     } else {
-      // Create heat BEFORE starting race
+      // Create new heat
       const { error } = await supabase
         .from('heats')
-        .insert([
-          {
-            event_id: selectedEventId,
-            heat_number: activeHeat,
-            status: 'running',
-            race_status: 'running',
-            race_started_at: now,
-          },
-        ]);
+        .insert({
+          event_id: selectedEventId,
+          heat_number: activeHeat,
+
+          // IMPORTANT:
+          // Do NOT set status = 'running'
+          // because your database does not allow it.
+
+          status: 'pending',
+
+          race_status: 'running',
+          race_started_at: now,
+        });
 
       if (error) {
         throw error;
@@ -470,7 +474,12 @@ const handleStartRace = async () => {
 
   } catch (error: any) {
     console.error('Error starting race:', error);
-    alert(`Could not start race: ${error?.message || 'Unknown error'}`);
+
+    alert(
+      `Could not start race: ${
+        error?.message || 'Unknown error'
+      }`
+    );
   }
 };
   // FINISH LANE
