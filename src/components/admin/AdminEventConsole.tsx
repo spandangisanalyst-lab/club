@@ -755,28 +755,75 @@ export default function AdminEventConsole({ settings }: Props) {
           </div>
           
           <div className="max-w-2xl mx-auto space-y-3 mb-8">
-            <h4 className="font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">Top Standings</h4>
-            
+            <h4 className="font-bold text-slate-900 border-b border-slate-200 pb-2 mb-4">
+              Summary — Top 3 Results
+            </h4>
+
             {finalResults.length === 0 ? (
-               <div className="p-4 bg-slate-50 text-center text-slate-500 rounded-lg">No valid times recorded for this event.</div>
+              <div className="p-4 bg-slate-50 text-center text-slate-500 rounded-lg">
+                No valid times recorded for this event.
+              </div>
             ) : (
-              finalResults.slice(0, 3).map((res, idx) => {
-                const points = selectedCategory.includes('10') ? 0 : (idx === 0 ? 5 : idx === 1 ? 3 : 1);
-                const medalColors = ['text-yellow-600', 'text-slate-400', 'text-amber-700'];
+              [0, 1, 2].map((position) => {
+                const res = finalResults[position];
                 const rankLabels = ['1st Place', '2nd Place', '3rd Place'];
-                
+                const rankColors = [
+                  'text-yellow-600',
+                  'text-slate-500',
+                  'text-amber-700'
+                ];
+
+                const points = selectedCategory.includes('10')
+                  ? 0
+                  : position === 0
+                    ? 5
+                    : position === 1
+                      ? 3
+                      : 1;
+
                 return (
-                  <div key={res.id} className="flex justify-between items-center p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-                    <div className="flex items-center gap-4">
-                       <span className={`${medalColors[idx]} font-bold text-lg w-20`}>{rankLabels[idx]}</span>
-                       <div>
-                         <div className="font-bold text-slate-900 text-lg">{res.participant_name}</div>
-                         <div className="text-sm text-slate-500">{res.club_name}</div>
-                       </div>
+                  <div
+                    key={rankLabels[position]}
+                    className="flex justify-between items-center p-4 bg-white border border-slate-200 rounded-xl shadow-sm"
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <span
+                        className={`${rankColors[position]} font-bold text-lg w-24 shrink-0`}
+                      >
+                        {rankLabels[position]}
+                      </span>
+
+                      {res ? (
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 text-lg truncate">
+                            {res.participant_name}
+                          </div>
+                          <div className="text-sm text-slate-500 truncate">
+                            {res.club_name}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-slate-400 italic">
+                          No result
+                        </div>
+                      )}
                     </div>
-                    <div className="text-right">
-                       <div className="font-mono font-bold text-slate-900 text-xl">{res.time}</div>
-                       <div className="text-sm font-bold text-cyan-600">{points} pts</div>
+
+                    <div className="text-right shrink-0 ml-4">
+                      {res ? (
+                        <>
+                          <div className="font-mono font-bold text-slate-900 text-xl">
+                            {res.time}
+                          </div>
+                          <div className="text-sm font-bold text-cyan-600">
+                            {points} pts
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-sm text-slate-400">
+                          —
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
