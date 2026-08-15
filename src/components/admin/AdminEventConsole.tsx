@@ -315,13 +315,55 @@ export default function AdminEventConsole({ settings }: Props) {
   };
 
   // START RACE
-  const handleStartRace = () => {
-    setStartTime(Date.now());
+ const handleStartRace = async () => {
+  if (!selectedEventId) return;
+
+  try {
+    const { data: heat, error } = await supabase
+      .from('heats')
+      .select('id')
+      .eq('event_id', selectedEventId)
+      .eq('heat_number', activeHeat)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!heat) {
+      alert('Heat not found.');
+      return;
+    }
+
+    // Give every connected device the SAME start timestamp
+    const startAt = new Date(
+      Date.now() + 1500
+    ).toISOString();
+
+    const { error: updateError } = await supabase
+      .from('heats')
+      .update({
+        status: 'running',
+        race_status: 'running',
+        race_started_at: startAt,
+        race_stopped_at: null,
+      })
+      .eq('id', heat.id);
+
+    if (updateError) throw updateError;
+
+    // Update this device immediately
+    const startTimestamp = new Date(startAt).getTime();
+
+    setStartTime(startTimestamp);
     setCurrentTime(0);
     setLaneResults({});
     setRaceStatus('running');
-  };
 
+  } catch (error) {
+    console.error('Error starting synchronized race:', error);
+
+    alert('Could not start the race.');
+  }
+};
   // STOP RACE
   const handleStopRace = () => {
     setRaceStatus('stopped');
