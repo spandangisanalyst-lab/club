@@ -516,9 +516,9 @@ export default function ChampionshipPage({
                     const position = idx + 1;
 
                     const heights = [
+                      'h-48 sm:h-60',
+                      'h-40 sm:h-48',
                       'h-32 sm:h-40',
-                      'h-40 sm:h-52',
-                      'h-28 sm:h-36',
                     ];
 
                     const colors = [
