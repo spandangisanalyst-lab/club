@@ -291,6 +291,45 @@ export default function AdminEventConsole({ settings }: Props) {
     }
   };
 
+  // Save final standings automatically into the Supabase `results` table.
+  // This only writes to the new results table.
+  const saveResultsToDatabase = async (eventId: string, results: any[]) => {
+    const selectedEvent = allEvents.find(e => String(e.id) === String(eventId));
+    const eventName = selectedEvent?.event_name || selectedEvent?.title || selectedEvent?.name || 'Unknown Event';
+    const ageGroup = selectedCategory || selectedEvent?.category || selectedEvent?.age_group || 'Unknown';
+
+    try {
+      // Replace existing rows for this event/category to prevent duplicates.
+      const { error: deleteError } = await supabase
+        .from('results')
+        .delete()
+        .eq('event', eventName)
+        .eq('age_group', ageGroup);
+
+      if (deleteError) throw deleteError;
+
+      if (!results.length) return;
+
+      const rows = results.map((result, index) => ({
+        name: result.participant_name || 'Unknown Swimmer',
+        club: result.club_name || 'Unknown Club',
+        time: result.time || '00:00.00',
+        event: eventName,
+        age_group: ageGroup,
+        position: index + 1
+      }));
+
+      const { error: insertError } = await supabase
+        .from('results')
+        .insert(rows);
+
+      if (insertError) throw insertError;
+    } catch (error: any) {
+      console.error('Error saving results to database:', error);
+      throw error;
+    }
+  };
+
   const handleNextHeat = async () => {
     setIsSavingHeat(true);
     try {
@@ -312,57 +351,17 @@ export default function AdminEventConsole({ settings }: Props) {
     }
   };
 
-  // Download complete event results as result.csv
-  const downloadResultCSV = () => {
-    if (finalResults.length === 0) {
-      alert('No results available to export.');
-      return;
-    }
-
-    const selectedEvent = allEvents.find(e => String(e.id) === String(selectedEventId));
-    const eventName = selectedEvent?.event_name || selectedEvent?.title || selectedEvent?.name || '';
-    const ageGroup = selectedCategory || '';
-
-    const escapeCSV = (value: any) => {
-      const str = String(value ?? '');
-      return `"${str.replace(/"/g, '""')}"`;
-    };
-
-    const headers = ['Name', 'Club', 'Time', 'Event', 'Age Group', 'Position'];
-    const rows = finalResults.map((res, index) => [
-      res.participant_name || '',
-      res.club_name || '',
-      res.time || '',
-      eventName,
-      ageGroup,
-      index + 1
-    ]);
-
-    const csv = [
-      headers.map(escapeCSV).join(','),
-      ...rows.map(row => row.map(escapeCSV).join(','))
-    ].join('\r\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'result.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
   const handleFinishEvent = async () => {
     setIsSavingHeat(true);
     try {
       await saveCurrentHeatToDB();
       
-      // Automatically calculate top standings across ALL heats for this event
+      // Calculate ALL final standings and automatically save them
+      // to the Supabase `results` table.
       const finalStandings = await calculateFinalResults(selectedEventId);
       setFinalResults(finalStandings);
-      
+      await saveResultsToDatabase(selectedEventId, finalStandings);
+
       setStage('finished');
       fetchCompletedEvents(); 
     } catch (err) {
@@ -412,6 +411,11 @@ export default function AdminEventConsole({ settings }: Props) {
           .update({ time: result.time })
           .eq('id', result.id);
       }
+
+      // Recalculate and re-save the complete results after edits.
+      const updatedResults = await calculateFinalResults(editingEvent.id);
+      await saveResultsToDatabase(editingEvent.id, updatedResults);
+
       setEditResultModal(false);
       alert('Results successfully updated and synchronized globally.');
     } catch (error) {
@@ -432,6 +436,21 @@ export default function AdminEventConsole({ settings }: Props) {
       if (heatIds.length > 0) {
         await supabase.from('heat_entries').delete().in('heat_id', heatIds);
         await supabase.from('heats').delete().eq('event_id', eventId);
+      }
+
+      // Remove the saved result rows for this event from the new results table.
+      const eventToDelete = allEvents.find(e => String(e.id) === String(eventId));
+      const eventName = eventToDelete?.event_name || eventToDelete?.title || eventToDelete?.name;
+
+      // Remove all saved result rows belonging to this event.
+      // Existing heats/participants/clubs are handled separately above.
+      if (eventName) {
+        const { error: resultsDeleteError } = await supabase
+          .from('results')
+          .delete()
+          .eq('event', eventName);
+
+        if (resultsDeleteError) throw resultsDeleteError;
       }
     } catch (error) {
       console.error('Error deleting results:', error);
@@ -809,16 +828,6 @@ export default function AdminEventConsole({ settings }: Props) {
                 * Under-10 group yields 0 points for club standings.
               </div>
             )}
-          </div>
-
-          <div className="flex justify-center gap-3 mb-6">
-            <button
-              onClick={downloadResultCSV}
-              disabled={finalResults.length === 0}
-              className="px-6 py-3 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Download result.csv
-            </button>
           </div>
 
           <div className="text-center">
