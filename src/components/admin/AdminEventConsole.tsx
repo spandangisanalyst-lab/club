@@ -230,25 +230,178 @@ export default function AdminEventConsole({ settings }: Props) {
   };
 
   const saveCurrentHeatToDB = async () => {
-    try {
-      const { data: heatData, error: heatError } = await supabase
+  try {
+    /*
+     * Check whether this heat has already been saved.
+     * The database has a unique constraint on:
+     *
+     * event_id + heat_number
+     *
+     * So we must NOT insert the same heat twice.
+     */
+
+    const { data: existingHeat, error: existingHeatError } =
+      await supabase
         .from('heats')
-        .insert([{ event_id: selectedEventId, heat_number: activeHeat }])
-        .select()
-        .single();
+        .select('id')
+        .eq('event_id', selectedEventId)
+        .eq('heat_number', activeHeat)
+        .maybeSingle();
 
-      if (heatError) throw heatError;
+    if (existingHeatError) {
+      throw existingHeatError;
+    }
 
-      const entriesPayload = activeLanes.map((p, index) => {
-        const rawTime = laneResults[p.id] || 0;
-        return {
-          heat_id: heatData.id,
-          participant_id: p.id,
-          lane: index + 1,
-          time: formatTime(rawTime) // Using exactly 'time' column
-        };
-      });
+    let heatId: string;
 
+    if (existingHeat) {
+      /*
+       * Heat already exists.
+       * Use the existing heat instead of inserting another one.
+       */
+      heatId = existingHeat.id;
+
+      console.log(
+        `Heat ${activeHeat} already exists. Using existing heat.`
+      );
+
+    } else {
+      /*
+       * Heat does not exist yet.
+       * Create it normally.
+       */
+      const { data: newHeat, error: heatError } =
+        await supabase
+          .from('heats')
+          .insert([
+            {
+              event_id: selectedEventId,
+              heat_number: activeHeat
+            }
+          ])
+          .select('id')
+          .single();
+
+      if (heatError) {
+        throw heatError;
+      }
+
+      heatId = newHeat.id;
+    }
+
+    /*
+     * Prepare the swimmers in this heat.
+     */
+    const entriesPayload = activeLanes.map((p, index) => {
+      const rawTime = laneResults[p.id] || 0;
+
+      return {
+        heat_id: heatId,
+        participant_id: p.id,
+        lane: index + 1,
+        time: formatTime(rawTime)
+      };
+    });
+
+    /*
+     * Check whether entries already exist for this heat.
+     */
+    const { data: existingEntries, error: entriesCheckError } =
+      await supabase
+        .from('heat_entries')
+        .select('id')
+        .eq('heat_id', heatId);
+
+    if (entriesCheckError) {
+      throw entriesCheckError;
+    }
+
+    /*
+     * If this heat was already saved, update the existing
+     * swimmer entries instead of creating duplicates.
+     */
+    if (existingEntries && existingEntries.length > 0) {
+
+      for (const entry of entriesPayload) {
+
+        const { data: existingEntry, error: findEntryError } =
+          await supabase
+            .from('heat_entries')
+            .select('id')
+            .eq('heat_id', heatId)
+            .eq('participant_id', entry.participant_id)
+            .maybeSingle();
+
+        if (findEntryError) {
+          throw findEntryError;
+        }
+
+        if (existingEntry) {
+
+          const { error: updateError } =
+            await supabase
+              .from('heat_entries')
+              .update({
+                lane: entry.lane,
+                time: entry.time
+              })
+              .eq('id', existingEntry.id);
+
+          if (updateError) {
+            throw updateError;
+          }
+
+        } else {
+
+          const { error: insertError } =
+            await supabase
+              .from('heat_entries')
+              .insert([entry]);
+
+          if (insertError) {
+            throw insertError;
+          }
+        }
+      }
+
+    } else {
+
+      /*
+       * No entries exist yet, so insert them normally.
+       */
+      if (entriesPayload.length > 0) {
+
+        const { error: entriesError } =
+          await supabase
+            .from('heat_entries')
+            .insert(entriesPayload);
+
+        if (entriesError) {
+          throw entriesError;
+        }
+      }
+    }
+
+    console.log(
+      `Heat ${activeHeat} saved successfully.`
+    );
+
+  } catch (error: any) {
+
+    console.error(
+      'Error saving heat to DB:',
+      error
+    );
+
+    alert(
+      `Failed to save heat data: ${
+        error?.message || 'Unknown error'
+      }`
+    );
+
+    throw error;
+  }
+};
       const { error: entriesError } = await supabase
         .from('heat_entries')
         .insert(entriesPayload);
