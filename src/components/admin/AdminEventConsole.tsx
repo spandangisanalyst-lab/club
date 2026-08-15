@@ -312,6 +312,48 @@ export default function AdminEventConsole({ settings }: Props) {
     }
   };
 
+  // Download complete event results as result.csv
+  const downloadResultCSV = () => {
+    if (finalResults.length === 0) {
+      alert('No results available to export.');
+      return;
+    }
+
+    const selectedEvent = allEvents.find(e => String(e.id) === String(selectedEventId));
+    const eventName = selectedEvent?.event_name || selectedEvent?.title || selectedEvent?.name || '';
+    const ageGroup = selectedCategory || '';
+
+    const escapeCSV = (value: any) => {
+      const str = String(value ?? '');
+      return `"${str.replace(/"/g, '""')}"`;
+    };
+
+    const headers = ['Name', 'Club', 'Time', 'Event', 'Age Group', 'Position'];
+    const rows = finalResults.map((res, index) => [
+      res.participant_name || '',
+      res.club_name || '',
+      res.time || '',
+      eventName,
+      ageGroup,
+      index + 1
+    ]);
+
+    const csv = [
+      headers.map(escapeCSV).join(','),
+      ...rows.map(row => row.map(escapeCSV).join(','))
+    ].join('\r\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'result.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleFinishEvent = async () => {
     setIsSavingHeat(true);
     try {
@@ -767,6 +809,16 @@ export default function AdminEventConsole({ settings }: Props) {
                 * Under-10 group yields 0 points for club standings.
               </div>
             )}
+          </div>
+
+          <div className="flex justify-center gap-3 mb-6">
+            <button
+              onClick={downloadResultCSV}
+              disabled={finalResults.length === 0}
+              className="px-6 py-3 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Download result.csv
+            </button>
           </div>
 
           <div className="text-center">
