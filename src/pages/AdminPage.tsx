@@ -1,7 +1,18 @@
 import { useState, useEffect } from 'react';
 import {
-  Lock, LayoutDashboard, CalendarDays, Users, Timer,
-  Trophy, Settings, LogOut, Waves, Menu, X, FileBarChart,
+  Lock,
+  LayoutDashboard,
+  CalendarDays,
+  Users,
+  Timer,
+  Trophy,
+  Award,
+  Settings,
+  LogOut,
+  Waves,
+  Menu,
+  X,
+  FileBarChart,
 } from 'lucide-react';
 import { ADMIN_PASSWORD } from '../lib/constants';
 import { cn } from '../lib/utils';
@@ -129,6 +140,7 @@ export default function AdminPage({ settings }: Props) {
     { key: 'eventConsole', label: 'Live Race Console', icon: Timer },
     { key: 'reports', label: 'Reports & Lists', icon: FileBarChart },
     { key: 'results', label: 'Results & Standings', icon: Trophy },
+    { key: 'certificates', label: 'Certificates', icon: Award },
     { key: 'settings', label: 'Website & Certs', icon: Settings },
   ];
 
@@ -237,9 +249,7 @@ export default function AdminPage({ settings }: Props) {
     <AdminCertificates />
   )}
 
-  {tab === 'certificates' && (
-  <AdminCertificates />
-)}    
+    
   {tab === 'settings' && (
     <AdminSettings settings={settings} />
   )}
