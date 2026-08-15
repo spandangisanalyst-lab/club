@@ -231,7 +231,7 @@ export default function AdminEventConsole({ settings }: Props) {
 
   const saveCurrentHeatToDB = async () => {
   try {
-    // Check if this heat already exists
+    // Check whether this heat already exists
     const { data: existingHeat, error: existingHeatError } =
       await supabase
         .from('heats')
@@ -246,15 +246,11 @@ export default function AdminEventConsole({ settings }: Props) {
 
     let heatId: string;
 
-    // If the heat already exists, use it
     if (existingHeat) {
+      // Heat already exists — use it
       heatId = existingHeat.id;
-
-      console.log(
-        `Heat ${activeHeat} already exists. Using existing heat.`
-      );
     } else {
-      // Otherwise create a new heat
+      // Create new heat
       const { data: newHeat, error: heatError } =
         await supabase
           .from('heats')
@@ -286,14 +282,12 @@ export default function AdminEventConsole({ settings }: Props) {
       };
     });
 
-    // Check existing entries for this heat
-    const {
-      data: existingEntries,
-      error: entriesCheckError
-    } = await supabase
-      .from('heat_entries')
-      .select('id, participant_id')
-      .eq('heat_id', heatId);
+    // Get existing entries for this heat
+    const { data: existingEntries, error: entriesCheckError } =
+      await supabase
+        .from('heat_entries')
+        .select('id, participant_id')
+        .eq('heat_id', heatId);
 
     if (entriesCheckError) {
       throw entriesCheckError;
@@ -301,7 +295,6 @@ export default function AdminEventConsole({ settings }: Props) {
 
     // Update existing entries or insert new ones
     for (const entry of entriesPayload) {
-
       const existingEntry = existingEntries?.find(
         item =>
           String(item.participant_id) ===
@@ -309,8 +302,6 @@ export default function AdminEventConsole({ settings }: Props) {
       );
 
       if (existingEntry) {
-
-        // Update existing swimmer result
         const { error: updateError } =
           await supabase
             .from('heat_entries')
@@ -323,10 +314,7 @@ export default function AdminEventConsole({ settings }: Props) {
         if (updateError) {
           throw updateError;
         }
-
       } else {
-
-        // Insert new swimmer result
         const { error: insertError } =
           await supabase
             .from('heat_entries')
@@ -343,7 +331,6 @@ export default function AdminEventConsole({ settings }: Props) {
     );
 
   } catch (error: any) {
-
     console.error(
       'Error saving heat to DB:',
       error
@@ -358,76 +345,6 @@ export default function AdminEventConsole({ settings }: Props) {
     throw error;
   }
 };
-  const calculateFinalResults = async (eventId: string) => {
-    try {
-      // 1. Fetch all heats for this specific event
-      const { data: heatsData } = await supabase.from('heats').select('id').eq('event_id', eventId);
-      if (!heatsData || heatsData.length === 0) return [];
-
-      const heatIds = heatsData.map(h => h.id);
-
-      // 2. Fetch all entries from those heats
-      const { data: entriesData } = await supabase.from('heat_entries').select('*').in('heat_id', heatIds);
-      
-      // 3. Map to participant and club data, filtering out any '00:00.00' disqualifications
-      const mappedResults = (entriesData || [])
-        .filter(entry => entry.time && entry.time !== '00:00.00')
-        .map(entry => {
-          const p = allParticipants.find(p => String(p.id) === String(entry.participant_id));
-          const club = p ? allClubs.find(c => String(c.id) === String(p.club_id)) : null;
-          return {
-            id: entry.id,
-            participant_name: p ? (p.name || p.full_name) : 'Unknown Swimmer',
-            club_name: club ? (club.name || club.title) : 'Unknown Club',
-            time: entry.time
-          };
-        });
-
-      // 4. Sort strictly by time (string comparison works flawlessly for MM:SS.ms format)
-      mappedResults.sort((a, b) => a.time.localeCompare(b.time));
-      
-      return mappedResults;
-    } catch (error) {
-      console.error('Error calculating final results:', error);
-      return [];
-    }
-  };
-
-  const handleNextHeat = async () => {
-    setIsSavingHeat(true);
-    try {
-      await saveCurrentHeatToDB();
-      
-      const nextHeatStart = activeHeat * 8;
-      const presentSwimmers = registeredSwimmers.filter(p => attendance[p.id]);
-      
-      setActiveLanes(presentSwimmers.slice(nextHeatStart, nextHeatStart + 8));
-      setActiveHeat(activeHeat + 1); 
-      
-      setRaceStatus('idle');
-      setLaneResults({});
-      setCurrentTime(0);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSavingHeat(false);
-    }
-  };
-
-  const handleFinishEvent = async () => {
-    setIsSavingHeat(true);
-    try {
-      // Save the last heat first.
-      await saveCurrentHeatToDB();
-
-      // Mark ALL heats belonging to this event as finished.
-      // This is what makes the event appear in Manage Completed Results.
-      const { error: finishError } = await supabase
-        .from('heats')
-        .update({ status: 'finished' })
-        .eq('event_id', selectedEventId);
-
-      if (finishError) throw finishError;
 
       // Automatically calculate top standings across ALL heats for this event.
       const finalStandings = await calculateFinalResults(selectedEventId);
