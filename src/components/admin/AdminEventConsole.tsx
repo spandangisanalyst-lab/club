@@ -395,10 +395,6 @@ export default function AdminEventConsole({ settings }: Props) {
           throw heatError;
         }
 
-        if (!newHeat?.id) {
-          throw new Error('Failed to create heat record.');
-        }
-
         heatId = newHeat.id;
       }
 
