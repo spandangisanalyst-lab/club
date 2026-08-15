@@ -108,48 +108,70 @@ export default function AdminResults({ settings }: Props) {
     }
   };
 
-  useEffect(() => {
-    loadCompletedEvents();
+useEffect(() => {
+  loadCompletedEvents();
 
-    const channel = supabase
-      .channel('results-panel-live')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'heat_entries',
-        },
-        () => {
-          if (selectedEventId) {
-            loadData(selectedEventId);
-          }
+  const channel = supabase
+    .channel('results-panel-live')
 
-          loadCompletedEvents();
+    // HEAT ENTRIES CHANGES
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'heat_entries',
+      },
+      () => {
+        if (selectedEventId) {
+          loadData(selectedEventId);
         }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'heats',
-        },
-        () => {
-          if (selectedEventId) {
-            loadData(selectedEventId);
-          }
 
-          loadCompletedEvents();
+        loadCompletedEvents();
+      }
+    )
+
+    // HEATS CHANGES
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'heats',
+      },
+      () => {
+        if (selectedEventId) {
+          loadData(selectedEventId);
         }
-      )
-      .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [selectedEventId]);
+        loadCompletedEvents();
+      }
+    )
 
+    // ⭐ EVENTS CHANGES
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'events',
+      },
+      () => {
+        // Reload the event information immediately
+        loadCompletedEvents();
+
+        if (selectedEventId) {
+          loadData(selectedEventId);
+        }
+      }
+    )
+
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [selectedEventId]);
   useEffect(() => {
     if (selectedEventId) {
       loadData(selectedEventId);
@@ -560,16 +582,13 @@ export default function AdminResults({ settings }: Props) {
   const hasResults =
     entriesWithResults.length > 0;
 
-  const selectedEvent =
-    eventMap.get(
-      selectedEventId
-    ) ||
-    completedEvents.find(
-      (event) =>
-        String(event.id) ===
-        String(selectedEventId)
-    );
-
+const selectedEvent =
+  completedEvents.find(
+    (event) =>
+      String(event.id) ===
+      String(selectedEventId)
+  ) ||
+  eventMap.get(selectedEventId);
   return (
     <div>
       <div className="mb-6">
