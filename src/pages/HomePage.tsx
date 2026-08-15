@@ -4,7 +4,7 @@ import type { Page } from '../App';
 import type { SettingsMap } from '../lib/types';
 import { HERO_IMAGES, GALLERY_IMAGES } from '../lib/constants';
 import { formatDate } from '../lib/utils';
-
+import EventList from '../components/EventList';
 interface Props {
   settings: SettingsMap;
   navigate: (p: Page) => void;
@@ -101,6 +101,8 @@ export default function HomePage({ settings, navigate }: Props) {
           ))}
         </div>
       </section>
+        {/* Order of Events */}
+      <EventList />
 
       {/* About */}
       <section className="py-20 bg-slate-50">
