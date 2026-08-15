@@ -408,41 +408,69 @@ useEffect(() => {
   };
 
  // START RACE
-const handleStartRace = () => {
-  setStartTime(Date.now());
-  setCurrentTime(0);
-  setLaneResults({});
-  setRaceStatus('running');
-};
-  // STOP RACE
- const handleStopRace = async () => {
-  if (!selectedEventId) return;
+const handleStartRace = async () => {
+  if (!selectedEventId) {
+    alert('No event selected.');
+    return;
+  }
 
   try {
-    const { error } = await supabase
-      .from('heats')
-      .update({
-        status: 'finished',
-        race_status: 'stopped',
-        race_stopped_at: new Date().toISOString(),
-      })
-      .eq('event_id', selectedEventId)
-      .eq('heat_number', activeHeat);
+    const now = new Date().toISOString();
 
-    if (error) {
-      throw error;
+    // Check whether this heat already exists
+    const { data: existingHeat, error: findError } = await supabase
+      .from('heats')
+      .select('id')
+      .eq('event_id', selectedEventId)
+      .eq('heat_number', activeHeat)
+      .maybeSingle();
+
+    if (findError) {
+      throw findError;
     }
 
-    // Stop this device immediately
-    setRaceStatus('stopped');
+    if (existingHeat) {
+      // Heat already exists - start it
+      const { error } = await supabase
+        .from('heats')
+        .update({
+          status: 'running',
+          race_status: 'running',
+          race_started_at: now,
+        })
+        .eq('id', existingHeat.id);
 
-  } catch (error) {
-    console.error(
-      'Error stopping synchronized race:',
-      error
-    );
+      if (error) {
+        throw error;
+      }
+    } else {
+      // Create heat BEFORE starting race
+      const { error } = await supabase
+        .from('heats')
+        .insert([
+          {
+            event_id: selectedEventId,
+            heat_number: activeHeat,
+            status: 'running',
+            race_status: 'running',
+            race_started_at: now,
+          },
+        ]);
 
-    alert('Could not stop the race.');
+      if (error) {
+        throw error;
+      }
+    }
+
+    // Start local timer
+    setStartTime(new Date(now).getTime());
+    setCurrentTime(0);
+    setLaneResults({});
+    setRaceStatus('running');
+
+  } catch (error: any) {
+    console.error('Error starting race:', error);
+    alert(`Could not start race: ${error?.message || 'Unknown error'}`);
   }
 };
   // FINISH LANE
