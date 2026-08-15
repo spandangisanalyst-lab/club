@@ -19,6 +19,8 @@ export default function AdminEventConsole({ settings }: Props) {
   const [allClubs, setAllClubs] = useState<any[]>([]);
   const [allRegistrations, setAllRegistrations] = useState<any[]>([]);
   const [completedEvents, setCompletedEvents] = useState<any[]>([]);
+  // Top 3 results for each completed event, used by Manage Completed Results.
+  const [completedEventResults, setCompletedEventResults] = useState<Record<string, any[]>>({});
   
   // Selection States
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -107,25 +109,91 @@ export default function AdminEventConsole({ settings }: Props) {
 
   const fetchCompletedEvents = async () => {
     try {
-      // An event is shown here only after it has been explicitly finished.
-      const { data: heatsData, error } = await supabase
+      // A completed event is an event with at least one finished heat.
+      // We also load its heat entries here so Manage Completed Results can
+      // show 1st / 2nd / 3rd without changing any database data.
+      const { data: heatsData, error: heatsError } = await supabase
         .from('heats')
-        .select('event_id, status, events(*)')
+        .select('id, event_id, status, events(*)')
         .eq('status', 'finished');
 
-      if (error) throw error;
+      if (heatsError) throw heatsError;
 
-      const uniqueEventsMap = new Map();
+      const uniqueEventsMap = new Map<string, any>();
+      const eventHeatIds = new Map<string, string[]>();
 
       (heatsData || []).forEach((h: any) => {
-        if (h.events && !uniqueEventsMap.has(String(h.event_id))) {
-          uniqueEventsMap.set(String(h.event_id), h.events);
+        const eventKey = String(h.event_id);
+        if (h.events && !uniqueEventsMap.has(eventKey)) {
+          uniqueEventsMap.set(eventKey, h.events);
         }
+        if (!eventHeatIds.has(eventKey)) eventHeatIds.set(eventKey, []);
+        eventHeatIds.get(eventKey)!.push(h.id);
       });
 
-      setCompletedEvents(Array.from(uniqueEventsMap.values()));
+      const completed = Array.from(uniqueEventsMap.values());
+      setCompletedEvents(completed);
+
+      if (completed.length === 0) {
+        setCompletedEventResults({});
+        return;
+      }
+
+      // Load participants and clubs independently so this function does not
+      // depend on React state having finished updating from fetchData().
+      const [{ data: participants }, { data: clubs }] = await Promise.all([
+        supabase.from('participants').select('*'),
+        supabase.from('clubs').select('*')
+      ]);
+
+      const participantMap = new Map((participants || []).map((p: any) => [String(p.id), p]));
+      const clubMap = new Map((clubs || []).map((c: any) => [String(c.id), c]));
+
+      const resultMap: Record<string, any[]> = {};
+
+      for (const event of completed) {
+        const eventId = String(event.id);
+        const heatIds = eventHeatIds.get(eventId) || [];
+        if (heatIds.length === 0) {
+          resultMap[eventId] = [];
+          continue;
+        }
+
+        const { data: entries, error: entriesError } = await supabase
+          .from('heat_entries')
+          .select('*')
+          .in('heat_id', heatIds);
+
+        if (entriesError) throw entriesError;
+
+        const mapped = (entries || [])
+          .filter((entry: any) => entry.time && entry.time !== '00:00.00')
+          .map((entry: any) => {
+            const participant: any = participantMap.get(String(entry.participant_id));
+            const club: any = participant
+              ? clubMap.get(String(participant.club_id))
+              : null;
+
+            return {
+              id: entry.id,
+              participant_name: participant
+                ? (participant.name || participant.full_name || 'Unknown Swimmer')
+                : 'Unknown Swimmer',
+              club_name: club
+                ? (club.name || club.title || 'Unknown Club')
+                : 'Unknown Club',
+              time: entry.time
+            };
+          })
+          .sort((a: any, b: any) => String(a.time).localeCompare(String(b.time)))
+          .slice(0, 3);
+
+        resultMap[eventId] = mapped;
+      }
+
+      setCompletedEventResults(resultMap);
     } catch (error) {
-      console.error('Error fetching completed events:', error);
+      console.error('Error fetching completed events/results:', error);
     }
   };
 
@@ -518,28 +586,77 @@ export default function AdminEventConsole({ settings }: Props) {
                 <tbody className="divide-y divide-slate-200">
                   {completedEvents.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-4 py-8 text-center text-slate-500">No completed events found in the database.</td>
+                      <td colSpan={3} className="px-4 py-8 text-center text-slate-500">
+                        No completed events found in the database.
+                      </td>
                     </tr>
                   ) : (
-                    completedEvents.map((ev: any) => (
-                      <tr key={ev.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0">
-                        <td className="px-4 py-4">
-                          <div className="font-bold text-slate-900">{ev.event_name || ev.title || ev.name}</div>
-                          <div className="text-xs text-slate-500">{ev.category}</div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-bold shadow-sm">Completed</span>
-                        </td>
-                        <td className="px-4 py-4 text-right space-x-2 whitespace-nowrap">
-                          <button onClick={() => handleOpenEditModal(ev)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="Edit Results">
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleDeleteEventResults(ev.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="Delete Results">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    completedEvents.map((ev: any) => {
+                      const top3 = completedEventResults[String(ev.id)] || [];
+                      const rankLabels = ['1st', '2nd', '3rd'];
+
+                      return (
+                        <tr key={ev.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0">
+                          <td className="px-4 py-4 align-top">
+                            <div className="font-bold text-slate-900">
+                              {ev.event_name || ev.title || ev.name}
+                            </div>
+                            <div className="text-xs text-slate-500 mb-3">{ev.category}</div>
+
+                            <div className="space-y-1.5">
+                              {[0, 1, 2].map((position) => {
+                                const result = top3[position];
+                                return (
+                                  <div
+                                    key={`${ev.id}-${position}`}
+                                    className="flex items-center gap-2 text-xs"
+                                  >
+                                    <span className="w-9 font-bold text-slate-700">
+                                      {rankLabels[position]}
+                                    </span>
+                                    {result ? (
+                                      <>
+                                        <span className="font-semibold text-slate-800 flex-1">
+                                          {result.participant_name}
+                                        </span>
+                                        <span className="font-mono font-bold text-cyan-700">
+                                          {result.time}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <span className="text-slate-400 italic">No result</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-4 align-top">
+                            <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-bold shadow-sm">
+                              Completed
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-4 text-right align-top space-x-2 whitespace-nowrap">
+                            <button
+                              onClick={() => handleOpenEditModal(ev)}
+                              className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                              title="Edit Results"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEventResults(ev.id)}
+                              className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                              title="Delete Results"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
