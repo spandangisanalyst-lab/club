@@ -130,7 +130,100 @@ export default function AdminEventConsole({ settings }: Props) {
       supabase.removeChannel(channel);
     };
   }, []);
+// SYNCHRONIZED RACE START/STOP
+useEffect(() => {
+  if (!selectedEventId) return;
 
+  const channel = supabase
+    .channel(`race-sync-${selectedEventId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'heats',
+        filter: `event_id=eq.${selectedEventId}`,
+      },
+      (payload) => {
+        const heat = payload.new as any;
+
+        // Only react to the currently selected heat
+        if (
+          Number(heat.heat_number) !==
+          Number(activeHeat)
+        ) {
+          return;
+        }
+
+        console.log(
+          'RACE SYNC UPDATE:',
+          heat
+        );
+
+        // ==========================================
+        // ANOTHER DEVICE STARTED THE RACE
+        // ==========================================
+        if (
+          heat.race_status === 'running' &&
+          heat.race_started_at
+        ) {
+          const synchronizedStartTime =
+            new Date(
+              heat.race_started_at
+            ).getTime();
+
+          console.log(
+            'SYNCHRONIZED START:',
+            synchronizedStartTime
+          );
+
+          // Use EXACTLY the same timestamp
+          // on every device
+          setStartTime(
+            synchronizedStartTime
+          );
+
+          setCurrentTime(
+            Math.max(
+              0,
+              Date.now() -
+                synchronizedStartTime
+            )
+          );
+
+          setLaneResults({});
+
+          setRaceStatus('running');
+        }
+
+        // ==========================================
+        // ANOTHER DEVICE STOPPED THE RACE
+        // ==========================================
+        if (
+          heat.race_status === 'stopped'
+        ) {
+          setRaceStatus('stopped');
+
+          console.log(
+            'SYNCHRONIZED STOP'
+          );
+        }
+      }
+    )
+    .subscribe((status) => {
+      console.log(
+        'Race sync channel:',
+        status
+      );
+    });
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [
+  selectedEventId,
+  activeHeat,
+]);
   // FETCH MAIN DATA
   const fetchData = async () => {
     setLoading(true);
@@ -365,10 +458,36 @@ export default function AdminEventConsole({ settings }: Props) {
   }
 };
   // STOP RACE
-  const handleStopRace = () => {
-    setRaceStatus('stopped');
-  };
+ const handleStopRace = async () => {
+  if (!selectedEventId) return;
 
+  try {
+    const { error } = await supabase
+      .from('heats')
+      .update({
+        status: 'finished',
+        race_status: 'stopped',
+        race_stopped_at: new Date().toISOString(),
+      })
+      .eq('event_id', selectedEventId)
+      .eq('heat_number', activeHeat);
+
+    if (error) {
+      throw error;
+    }
+
+    // Stop this device immediately
+    setRaceStatus('stopped');
+
+  } catch (error) {
+    console.error(
+      'Error stopping synchronized race:',
+      error
+    );
+
+    alert('Could not stop the race.');
+  }
+};
   // FINISH LANE
   const handleFinishLane = (participantId: string) => {
     if (raceStatus !== 'running') return;
