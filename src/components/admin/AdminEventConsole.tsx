@@ -231,15 +231,7 @@ export default function AdminEventConsole({ settings }: Props) {
 
   const saveCurrentHeatToDB = async () => {
   try {
-    /*
-     * Check whether this heat has already been saved.
-     * The database has a unique constraint on:
-     *
-     * event_id + heat_number
-     *
-     * So we must NOT insert the same heat twice.
-     */
-
+    // Check if this heat already exists
     const { data: existingHeat, error: existingHeatError } =
       await supabase
         .from('heats')
@@ -254,22 +246,15 @@ export default function AdminEventConsole({ settings }: Props) {
 
     let heatId: string;
 
+    // If the heat already exists, use it
     if (existingHeat) {
-      /*
-       * Heat already exists.
-       * Use the existing heat instead of inserting another one.
-       */
       heatId = existingHeat.id;
 
       console.log(
         `Heat ${activeHeat} already exists. Using existing heat.`
       );
-
     } else {
-      /*
-       * Heat does not exist yet.
-       * Create it normally.
-       */
+      // Otherwise create a new heat
       const { data: newHeat, error: heatError } =
         await supabase
           .from('heats')
@@ -289,9 +274,7 @@ export default function AdminEventConsole({ settings }: Props) {
       heatId = newHeat.id;
     }
 
-    /*
-     * Prepare the swimmers in this heat.
-     */
+    // Prepare swimmer results
     const entriesPayload = activeLanes.map((p, index) => {
       const rawTime = laneResults[p.id] || 0;
 
@@ -303,81 +286,54 @@ export default function AdminEventConsole({ settings }: Props) {
       };
     });
 
-    /*
-     * Check whether entries already exist for this heat.
-     */
-    const { data: existingEntries, error: entriesCheckError } =
-      await supabase
-        .from('heat_entries')
-        .select('id')
-        .eq('heat_id', heatId);
+    // Check existing entries for this heat
+    const {
+      data: existingEntries,
+      error: entriesCheckError
+    } = await supabase
+      .from('heat_entries')
+      .select('id, participant_id')
+      .eq('heat_id', heatId);
 
     if (entriesCheckError) {
       throw entriesCheckError;
     }
 
-    /*
-     * If this heat was already saved, update the existing
-     * swimmer entries instead of creating duplicates.
-     */
-    if (existingEntries && existingEntries.length > 0) {
+    // Update existing entries or insert new ones
+    for (const entry of entriesPayload) {
 
-      for (const entry of entriesPayload) {
+      const existingEntry = existingEntries?.find(
+        item =>
+          String(item.participant_id) ===
+          String(entry.participant_id)
+      );
 
-        const { data: existingEntry, error: findEntryError } =
+      if (existingEntry) {
+
+        // Update existing swimmer result
+        const { error: updateError } =
           await supabase
             .from('heat_entries')
-            .select('id')
-            .eq('heat_id', heatId)
-            .eq('participant_id', entry.participant_id)
-            .maybeSingle();
+            .update({
+              lane: entry.lane,
+              time: entry.time
+            })
+            .eq('id', existingEntry.id);
 
-        if (findEntryError) {
-          throw findEntryError;
+        if (updateError) {
+          throw updateError;
         }
 
-        if (existingEntry) {
+      } else {
 
-          const { error: updateError } =
-            await supabase
-              .from('heat_entries')
-              .update({
-                lane: entry.lane,
-                time: entry.time
-              })
-              .eq('id', existingEntry.id);
-
-          if (updateError) {
-            throw updateError;
-          }
-
-        } else {
-
-          const { error: insertError } =
-            await supabase
-              .from('heat_entries')
-              .insert([entry]);
-
-          if (insertError) {
-            throw insertError;
-          }
-        }
-      }
-
-    } else {
-
-      /*
-       * No entries exist yet, so insert them normally.
-       */
-      if (entriesPayload.length > 0) {
-
-        const { error: entriesError } =
+        // Insert new swimmer result
+        const { error: insertError } =
           await supabase
             .from('heat_entries')
-            .insert(entriesPayload);
+            .insert([entry]);
 
-        if (entriesError) {
-          throw entriesError;
+        if (insertError) {
+          throw insertError;
         }
       }
     }
@@ -402,19 +358,6 @@ export default function AdminEventConsole({ settings }: Props) {
     throw error;
   }
 };
-      const { error: entriesError } = await supabase
-        .from('heat_entries')
-        .insert(entriesPayload);
-
-      if (entriesError) throw entriesError;
-
-    } catch (error: any) {
-      console.error("Error saving heat to DB:", error);
-      alert(`Failed to save heat data: ${error.message}`);
-      throw error;
-    }
-  };
-
   const calculateFinalResults = async (eventId: string) => {
     try {
       // 1. Fetch all heats for this specific event
