@@ -15,6 +15,7 @@ import AdminEventConsole from '../components/admin/AdminEventConsole';
 import AdminReports from '../components/admin/AdminReports';
 import AdminResults from '../components/admin/AdminResults';
 import AdminSettings from '../components/admin/AdminSettings';
+import AdminCertificates from './components/admin/AdminCertificates';
 
 interface Props {
   settings: SettingsMap;
