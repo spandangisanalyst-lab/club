@@ -130,100 +130,7 @@ export default function AdminEventConsole({ settings }: Props) {
       supabase.removeChannel(channel);
     };
   }, []);
-// SYNCHRONIZED RACE START/STOP
-useEffect(() => {
-  if (!selectedEventId) return;
-
-  const channel = supabase
-    .channel(`race-sync-${selectedEventId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'heats',
-        filter: `event_id=eq.${selectedEventId}`,
-      },
-      (payload) => {
-        const heat = payload.new as any;
-
-        // Only react to the currently selected heat
-        if (
-          Number(heat.heat_number) !==
-          Number(activeHeat)
-        ) {
-          return;
-        }
-
-        console.log(
-          'RACE SYNC UPDATE:',
-          heat
-        );
-
-        // ==========================================
-        // ANOTHER DEVICE STARTED THE RACE
-        // ==========================================
-        if (
-          heat.race_status === 'running' &&
-          heat.race_started_at
-        ) {
-          const synchronizedStartTime =
-            new Date(
-              heat.race_started_at
-            ).getTime();
-
-          console.log(
-            'SYNCHRONIZED START:',
-            synchronizedStartTime
-          );
-
-          // Use EXACTLY the same timestamp
-          // on every device
-          setStartTime(
-            synchronizedStartTime
-          );
-
-          setCurrentTime(
-            Math.max(
-              0,
-              Date.now() -
-                synchronizedStartTime
-            )
-          );
-
-          setLaneResults({});
-
-          setRaceStatus('running');
-        }
-
-        // ==========================================
-        // ANOTHER DEVICE STOPPED THE RACE
-        // ==========================================
-        if (
-          heat.race_status === 'stopped'
-        ) {
-          setRaceStatus('stopped');
-
-          console.log(
-            'SYNCHRONIZED STOP'
-          );
-        }
-      }
-    )
-    .subscribe((status) => {
-      console.log(
-        'Race sync channel:',
-        status
-      );
-    });
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [
-  selectedEventId,
-  activeHeat,
-]);
+// RACE TIMING IS LOCAL/MANUAL ONLY
   // FETCH MAIN DATA
   const fetchData = async () => {
     setLoading(true);
@@ -407,13 +314,41 @@ useEffect(() => {
     setStage('racing');
   };
 
-// START RACE
-const handleStartRace = () => {
-  setStartTime(Date.now());
-  setCurrentTime(0);
-  setLaneResults({});
-  setRaceStatus('running');
-};
+// SIMPLE LOCAL TIMING
+  const handleStartRace = () => {
+    setStartTime(Date.now());
+    setCurrentTime(0);
+    setLaneResults({});
+    setRaceStatus('running');
+  };
+
+  const handleStopRace = () => {
+    if (startTime !== null) {
+      setCurrentTime(Date.now() - startTime);
+    }
+    setRaceStatus('stopped');
+  };
+
+  const handleManualTimeChange = (
+    participantId: string,
+    value: string
+  ) => {
+    const ms = parseTimeToMs(value);
+
+    if (Number.isFinite(ms)) {
+      setLaneResults((prev) => ({
+        ...prev,
+        [participantId]: ms,
+      }));
+    } else if (value.trim() === '') {
+      setLaneResults((prev) => {
+        const next = { ...prev };
+        delete next[participantId];
+        return next;
+      });
+    }
+  };
+
   // FINISH LANE
   const handleFinishLane = (participantId: string) => {
     if (raceStatus !== 'running') return;
@@ -1727,30 +1662,18 @@ const handleStartRace = () => {
                       </div>
                     </div>
 
-                    {raceStatus ===
-                      'running' &&
-                    !isFinished ? (
-                      <button
-                        onClick={() =>
-                          handleFinishLane(
-                            p.id
-                          )
-                        }
-                        className="px-4 py-2 bg-cyan-100 text-cyan-700 font-bold rounded hover:bg-cyan-200"
-                      >
-                        Finish
-                      </button>
-                    ) : (
-                      <input
-                        type="text"
-                        value={
-                          displayTime
-                        }
-                        readOnly
-                        placeholder="00:00.00"
-                        className="w-24 p-2 border border-slate-300 rounded text-center font-mono"
-                      />
-                    )}
+                    <input
+                      type="text"
+                      value={displayTime}
+                      onChange={(e) =>
+                        handleManualTimeChange(
+                          p.id,
+                          e.target.value
+                        )
+                      }
+                      placeholder="00:00.00"
+                      className="w-28 p-2 border border-slate-300 rounded text-center font-mono focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+                    />
                   </div>
                 );
               }
