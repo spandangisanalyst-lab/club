@@ -22,7 +22,15 @@ interface Props {
 }
 
 // Updated tabs removing 'registrations' and 'heats', adding 'eventConsole'
-type AdminTab = 'dashboard' | 'events' | 'participants' | 'eventConsole' | 'reports' | 'results' | 'settings';
+type AdminTab =
+  | 'dashboard'
+  | 'events'
+  | 'participants'
+  | 'eventConsole'
+  | 'reports'
+  | 'results'
+  | 'certificates'
+  | 'settings';
 
 const SESSION_KEY = 'ctc_admin_auth';
 
@@ -200,16 +208,42 @@ export default function AdminPage({ settings }: Props) {
           <div className="w-10" />
         </div>
 
-        <div className="p-4 sm:p-6 lg:p-8">
-          {tab === 'dashboard' && <AdminDashboard settings={settings} />}
-          {tab === 'events' && <AdminEvents settings={settings} />}
-          {tab === 'participants' && <AdminParticipantsMerged settings={settings} />}
-          {tab === 'eventConsole' && <AdminEventConsole settings={settings} />}
-          {tab === 'reports' && <AdminReports settings={settings} />}
-          {tab === 'results' && <AdminResults settings={settings} />}
-          {tab === 'settings' && <AdminSettings settings={settings} />}
-        </div>
-      </div>
+    <div className="p-4 sm:p-6 lg:p-8"> 
+  {tab === 'dashboard' && (
+    <AdminDashboard settings={settings} />
+  )}
+
+  {tab === 'events' && (
+    <AdminEvents settings={settings} />
+  )}
+
+  {tab === 'participants' && (
+    <AdminParticipantsMerged settings={settings} />
+  )}
+
+  {tab === 'eventConsole' && (
+    <AdminEventConsole settings={settings} />
+  )}
+
+  {tab === 'reports' && (
+    <AdminReports settings={settings} />
+  )}
+
+  {tab === 'results' && (
+    <AdminResults settings={settings} />
+  )}
+
+  {tab === 'certificates' && (
+    <AdminCertificates />
+  )}
+
+  {tab === 'certificates' && (
+  <AdminCertificates />
+)}    
+  {tab === 'settings' && (
+    <AdminSettings settings={settings} />
+  )}
+</div>
     </div>
   );
 }
