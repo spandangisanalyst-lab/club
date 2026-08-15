@@ -407,80 +407,12 @@ useEffect(() => {
     setStage('racing');
   };
 
- // START RACE
-const handleStartRace = async () => {
-  if (!selectedEventId) {
-    alert('No event selected.');
-    return;
-  }
-
-  try {
-    const now = new Date().toISOString();
-
-    // Check whether this heat already exists
-    const { data: existingHeat, error: findError } =
-      await supabase
-        .from('heats')
-        .select('id')
-        .eq('event_id', selectedEventId)
-        .eq('heat_number', activeHeat)
-        .maybeSingle();
-
-    if (findError) {
-      throw findError;
-    }
-
-    if (existingHeat) {
-      // Heat already exists
-      const { error } = await supabase
-        .from('heats')
-        .update({
-          race_status: 'running',
-          race_started_at: now,
-        })
-        .eq('id', existingHeat.id);
-
-      if (error) {
-        throw error;
-      }
-    } else {
-      // Create new heat
-      const { error } = await supabase
-        .from('heats')
-        .insert({
-          event_id: selectedEventId,
-          heat_number: activeHeat,
-
-          // IMPORTANT:
-          // Do NOT set status = 'running'
-          // because your database does not allow it.
-
-          status: 'pending',
-
-          race_status: 'running',
-          race_started_at: now,
-        });
-
-      if (error) {
-        throw error;
-      }
-    }
-
-    // Start local timer
-    setStartTime(new Date(now).getTime());
-    setCurrentTime(0);
-    setLaneResults({});
-    setRaceStatus('running');
-
-  } catch (error: any) {
-    console.error('Error starting race:', error);
-
-    alert(
-      `Could not start race: ${
-        error?.message || 'Unknown error'
-      }`
-    );
-  }
+// START RACE
+const handleStartRace = () => {
+  setStartTime(Date.now());
+  setCurrentTime(0);
+  setLaneResults({});
+  setRaceStatus('running');
 };
   // FINISH LANE
   const handleFinishLane = (participantId: string) => {
