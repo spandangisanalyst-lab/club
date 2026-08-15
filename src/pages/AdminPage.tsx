@@ -143,53 +143,81 @@ export default function AdminPage({ settings }: Props) {
     { key: 'certificates', label: 'Certificates', icon: Award },
     { key: 'settings', label: 'Website & Certs', icon: Settings },
   ];
-
-  return (
+  
+     return (
     <div className="min-h-screen bg-slate-100 flex">
+
       {/* Sidebar */}
       <aside
         className={cn(
           'fixed lg:sticky top-0 left-0 h-screen w-64 bg-slate-900 z-50 transition-transform lg:translate-x-0',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          sidebarOpen
+            ? 'translate-x-0'
+            : '-translate-x-full'
         )}
       >
         <div className="flex items-center gap-3 px-6 h-16 border-b border-slate-800">
           <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center p-1 overflow-hidden shrink-0">
-            {/* Sidebar Club Logo */}
-            <img 
-              src="/club-logo.png" 
-              alt="Club Logo" 
+            <img
+              src="/club-logo.png"
+              alt="Club Logo"
               className="w-full h-full object-contain"
             />
           </div>
+
           <div className="flex-1 min-w-0">
-            <div className="text-white font-bold text-sm truncate">Admin Panel</div>
-            <div className="text-cyan-400 text-xs truncate">Cooch Behar Town Club</div>
+            <div className="text-white font-bold text-sm truncate">
+              Admin Panel
+            </div>
+
+            <div className="text-cyan-400 text-xs truncate">
+              Cooch Behar Town Club
+            </div>
           </div>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-white">
+
+          <button
+            onClick={() =>
+              setSidebarOpen(false)
+            }
+            className="lg:hidden text-slate-400 hover:text-white"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
-        <nav className="p-3 flex flex-col gap-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 4rem - 60px)' }}>
-          {tabs.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => {
-                setTab(key);
-                setSidebarOpen(false);
-              }}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left',
-                tab === key
-                  ? 'bg-cyan-500/20 text-cyan-300 shadow-inner'
-                  : 'text-slate-400 hover:text-white hover:bg-white/10'
-              )}
-            >
-              <Icon className="w-4 h-4 shrink-0" />
-              {label}
-            </button>
-          ))}
+
+        <nav
+          className="p-3 flex flex-col gap-1 overflow-y-auto"
+          style={{
+            maxHeight:
+              'calc(100vh - 4rem - 60px)',
+          }}
+        >
+          {tabs.map(
+            ({
+              key,
+              label,
+              icon: Icon,
+            }) => (
+              <button
+                key={key}
+                onClick={() => {
+                  setTab(key);
+                  setSidebarOpen(false);
+                }}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left',
+                  tab === key
+                    ? 'bg-cyan-500/20 text-cyan-300 shadow-inner'
+                    : 'text-slate-400 hover:text-white hover:bg-white/10'
+                )}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                {label}
+              </button>
+            )
+          )}
         </nav>
+
         <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-slate-800">
           <button
             onClick={handleLogout}
@@ -201,61 +229,96 @@ export default function AdminPage({ settings }: Props) {
         </div>
       </aside>
 
+      {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() =>
+            setSidebarOpen(false)
+          }
         />
       )}
 
       {/* Main content */}
       <div className="flex-1 min-w-0">
+
+        {/* Mobile header */}
         <div className="lg:hidden sticky top-0 bg-slate-900 z-30 flex items-center justify-between px-4 h-16 border-b border-slate-800">
-          <button onClick={() => setSidebarOpen(true)} className="text-white p-2 -ml-2">
+          <button
+            onClick={() =>
+              setSidebarOpen(true)
+            }
+            className="text-white p-2 -ml-2"
+          >
             <Menu className="w-6 h-6" />
           </button>
-          <span className="text-white font-semibold capitalize">
-            {tabs.find(t => t.key === tab)?.label}
+
+          <span className="text-white font-semibold">
+            {
+              tabs.find(
+                (t) => t.key === tab
+              )?.label
+            }
           </span>
+
           <div className="w-10" />
         </div>
 
-    <div className="p-4 sm:p-6 lg:p-8"> 
-  {tab === 'dashboard' && (
-    <AdminDashboard settings={settings} />
-  )}
+        {/* Page content */}
+        <div className="p-4 sm:p-6 lg:p-8">
 
-  {tab === 'events' && (
-    <AdminEvents settings={settings} />
-  )}
+          {tab === 'dashboard' && (
+            <AdminDashboard
+              settings={settings}
+            />
+          )}
 
-  {tab === 'participants' && (
-    <AdminParticipantsMerged settings={settings} />
-  )}
+          {tab === 'events' && (
+            <AdminEvents
+              settings={settings}
+            />
+          )}
 
-  {tab === 'eventConsole' && (
-    <AdminEventConsole settings={settings} />
-  )}
+          {tab === 'participants' && (
+            <AdminParticipantsMerged
+              settings={settings}
+            />
+          )}
 
-  {tab === 'reports' && (
-    <AdminReports settings={settings} />
-  )}
+          {tab === 'eventConsole' && (
+            <AdminEventConsole
+              settings={settings}
+            />
+          )}
 
-  {tab === 'results' && (
-    <AdminResults settings={settings} />
-  )}
+          {tab === 'reports' && (
+            <AdminReports
+              settings={settings}
+            />
+          )}
 
-  {tab === 'certificates' && (
-    <AdminCertificates />
-  )}
+          {tab === 'results' && (
+            <AdminResults
+              settings={settings}
+            />
+          )}
 
-    
-  {tab === 'settings' && (
-    <AdminSettings settings={settings} />
-  )}
-</div>
+          {tab === 'certificates' && (
+            <AdminCertificates />
+          )}
+
+          {tab === 'settings' && (
+            <AdminSettings
+              settings={settings}
+            />
+          )}
+
         </div>
+        {/* End page content */}
+
       </div>
+      {/* End main content */}
+
     </div>
   );
 }
