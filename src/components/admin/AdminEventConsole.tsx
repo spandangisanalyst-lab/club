@@ -107,16 +107,22 @@ export default function AdminEventConsole({ settings }: Props) {
 
   const fetchCompletedEvents = async () => {
     try {
-      const { data: heatsData, error } = await supabase.from('heats').select('event_id, events(*)');
+      // An event is shown here only after it has been explicitly finished.
+      const { data: heatsData, error } = await supabase
+        .from('heats')
+        .select('event_id, status, events(*)')
+        .eq('status', 'finished');
+
       if (error) throw error;
 
       const uniqueEventsMap = new Map();
-      (heatsData || []).forEach(h => {
-        if (h.events && !uniqueEventsMap.has(h.event_id)) {
-          uniqueEventsMap.set(h.event_id, h.events);
+
+      (heatsData || []).forEach((h: any) => {
+        if (h.events && !uniqueEventsMap.has(String(h.event_id))) {
+          uniqueEventsMap.set(String(h.event_id), h.events);
         }
       });
-      
+
       setCompletedEvents(Array.from(uniqueEventsMap.values()));
     } catch (error) {
       console.error('Error fetching completed events:', error);
@@ -291,45 +297,6 @@ export default function AdminEventConsole({ settings }: Props) {
     }
   };
 
-  // Save final standings automatically into the Supabase `results` table.
-  // This only writes to the new results table.
-  const saveResultsToDatabase = async (eventId: string, results: any[]) => {
-    const selectedEvent = allEvents.find(e => String(e.id) === String(eventId));
-    const eventName = selectedEvent?.event_name || selectedEvent?.title || selectedEvent?.name || 'Unknown Event';
-    const ageGroup = selectedCategory || selectedEvent?.category || selectedEvent?.age_group || 'Unknown';
-
-    try {
-      // Replace existing rows for this event/category to prevent duplicates.
-      const { error: deleteError } = await supabase
-        .from('results')
-        .delete()
-        .eq('event', eventName)
-        .eq('age_group', ageGroup);
-
-      if (deleteError) throw deleteError;
-
-      if (!results.length) return;
-
-      const rows = results.map((result, index) => ({
-        name: result.participant_name || 'Unknown Swimmer',
-        club: result.club_name || 'Unknown Club',
-        time: result.time || '00:00.00',
-        event: eventName,
-        age_group: ageGroup,
-        position: index + 1
-      }));
-
-      const { error: insertError } = await supabase
-        .from('results')
-        .insert(rows);
-
-      if (insertError) throw insertError;
-    } catch (error: any) {
-      console.error('Error saving results to database:', error);
-      throw error;
-    }
-  };
-
   const handleNextHeat = async () => {
     setIsSavingHeat(true);
     try {
@@ -354,18 +321,29 @@ export default function AdminEventConsole({ settings }: Props) {
   const handleFinishEvent = async () => {
     setIsSavingHeat(true);
     try {
+      // Save the last heat first.
       await saveCurrentHeatToDB();
-      
-      // Calculate ALL final standings and automatically save them
-      // to the Supabase `results` table.
+
+      // Mark ALL heats belonging to this event as finished.
+      // This is what makes the event appear in Manage Completed Results.
+      const { error: finishError } = await supabase
+        .from('heats')
+        .update({ status: 'finished' })
+        .eq('event_id', selectedEventId);
+
+      if (finishError) throw finishError;
+
+      // Automatically calculate top standings across ALL heats for this event.
       const finalStandings = await calculateFinalResults(selectedEventId);
       setFinalResults(finalStandings);
-      await saveResultsToDatabase(selectedEventId, finalStandings);
+
+      // Refresh the completed-event list immediately.
+      await fetchCompletedEvents();
 
       setStage('finished');
-      fetchCompletedEvents(); 
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('Error finishing event:', err);
+      alert(`Failed to complete event: ${err?.message || 'Unknown error'}`);
     } finally {
       setIsSavingHeat(false);
     }
@@ -411,11 +389,6 @@ export default function AdminEventConsole({ settings }: Props) {
           .update({ time: result.time })
           .eq('id', result.id);
       }
-
-      // Recalculate and re-save the complete results after edits.
-      const updatedResults = await calculateFinalResults(editingEvent.id);
-      await saveResultsToDatabase(editingEvent.id, updatedResults);
-
       setEditResultModal(false);
       alert('Results successfully updated and synchronized globally.');
     } catch (error) {
@@ -438,20 +411,7 @@ export default function AdminEventConsole({ settings }: Props) {
         await supabase.from('heats').delete().eq('event_id', eventId);
       }
 
-      // Remove the saved result rows for this event from the new results table.
-      const eventToDelete = allEvents.find(e => String(e.id) === String(eventId));
-      const eventName = eventToDelete?.event_name || eventToDelete?.title || eventToDelete?.name;
-
-      // Remove all saved result rows belonging to this event.
-      // Existing heats/participants/clubs are handled separately above.
-      if (eventName) {
-        const { error: resultsDeleteError } = await supabase
-          .from('results')
-          .delete()
-          .eq('event', eventName);
-
-        if (resultsDeleteError) throw resultsDeleteError;
-      }
+      await fetchCompletedEvents();
     } catch (error) {
       console.error('Error deleting results:', error);
       alert("Failed to delete results.");
