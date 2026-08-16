@@ -694,8 +694,8 @@ export default function CertificatePage({ settings }: Props) {
        * ========================================================
        */
 
-      const scaleX = W / 1536;
-      const scaleY = H / 1024;
+      const scaleX = W / 1491;
+      const scaleY = H / 1055;
 
       /*
        * ========================================================
