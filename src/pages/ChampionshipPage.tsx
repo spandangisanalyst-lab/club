@@ -642,214 +642,156 @@ export default function ChampionshipPage({
             )}
 
             {/* =================================================
-                FULL STANDINGS
-            ================================================== */}
-            <section className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
+    FULL STANDINGS — SAME STYLE AS RESULTS PAGE
+================================================== */}
+<section className="bg-white rounded-2xl shadow-lg overflow-hidden border border-slate-200">
 
-              {/* Table header */}
-              <div className="relative overflow-hidden bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950 px-5 sm:px-7 py-5">
+  {/* Header — same style as Results */}
+  <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-4">
+    <div className="flex items-center gap-3">
+      <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+        <Medal className="w-5 h-5 text-cyan-300" />
+      </div>
 
-                <div className="absolute right-0 top-0 w-40 h-40 bg-cyan-400/10 rounded-full blur-2xl" />
+      <div>
+        <h2 className="text-lg font-bold text-white">
+          Full Standings
+        </h2>
 
-                <div className="relative flex items-center gap-3">
+        <p className="text-xs text-slate-400">
+          Club championship leaderboard
+        </p>
+      </div>
+    </div>
+  </div>
 
-                  <div className="w-11 h-11 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center">
-                    <Medal className="w-5 h-5 text-cyan-300" />
-                  </div>
+  {/* Club standings */}
+  <div className="divide-y divide-slate-100">
 
-                  <div>
-                    <h2 className="text-lg sm:text-xl font-black text-white">
-                      Full Standings
-                    </h2>
+    {standings.map((s, idx) => {
 
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      Club championship leaderboard
-                    </p>
-                  </div>
+      const rank = idx + 1;
 
-                </div>
+      return (
+        <div
+          key={s.club.id}
+          className="flex items-center px-6 py-4 hover:bg-slate-50 transition-colors"
+        >
 
+          {/* Rank */}
+          <div
+            className={`
+              w-10 h-10
+              rounded-full
+              flex items-center
+              justify-center
+              font-bold
+              text-sm
+              shrink-0
+              mr-4
+              ${
+                rank === 1
+                  ? 'bg-yellow-100 text-yellow-700'
+                  : rank === 2
+                  ? 'bg-gray-200 text-gray-700'
+                  : rank === 3
+                  ? 'bg-orange-100 text-orange-700'
+                  : 'bg-slate-100 text-slate-600'
+              }
+            `}
+          >
+            {rank <= 3 ? (
+              <span className="text-lg">
+                {rank === 1
+                  ? '🥇'
+                  : rank === 2
+                  ? '🥈'
+                  : '🥉'}
+              </span>
+            ) : (
+              rank
+            )}
+          </div>
+
+          {/* Club */}
+          <div className="flex-1 min-w-0">
+
+            <div className="font-semibold text-slate-800 truncate">
+              {s.club.name}
+            </div>
+
+            <div className="text-sm text-slate-500">
+              Club Championship
+            </div>
+
+          </div>
+
+          {/* Medal Summary */}
+          <div className="hidden sm:flex items-center gap-4 mr-6">
+
+            {/* Gold */}
+            <div className="text-center">
+              <div className="text-xs text-yellow-600 font-semibold">
+                Gold
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="font-bold text-slate-800">
+                {s.gold}
+              </div>
+            </div>
 
-                <table className="w-full min-w-[650px]">
-
-                  <thead>
-
-                    <tr className="bg-slate-50 border-b border-slate-200">
-
-                      <th className="px-5 py-4 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider">
-                        Rank
-                      </th>
-
-                      <th className="px-5 py-4 text-left text-[11px] font-black text-slate-500 uppercase tracking-wider">
-                        Club
-                      </th>
-
-                      <th className="px-5 py-4 text-center text-[11px] font-black text-yellow-600 uppercase tracking-wider">
-                        Gold
-                      </th>
-
-                      <th className="px-5 py-4 text-center text-[11px] font-black text-slate-500 uppercase tracking-wider">
-                        Silver
-                      </th>
-
-                      <th className="px-5 py-4 text-center text-[11px] font-black text-orange-600 uppercase tracking-wider">
-                        Bronze
-                      </th>
-
-                      <th className="px-5 py-4 text-right text-[11px] font-black text-cyan-600 uppercase tracking-wider">
-                        Points
-                      </th>
-
-                    </tr>
-
-                  </thead>
-
-                  <tbody className="divide-y divide-slate-100">
-
-                    {standings.map((s, idx) => (
-
-                      <tr
-                        key={s.club.id}
-                        className={`
-                          transition-all duration-200
-                          ${
-                            idx === 0
-                              ? 'bg-yellow-50/50 hover:bg-yellow-50'
-                              : 'hover:bg-slate-50'
-                          }
-                        `}
-                      >
-
-                        {/* Rank */}
-                        <td className="px-5 py-4">
-
-                          <div
-                            className={`
-                              w-9 h-9
-                              rounded-xl
-                              flex items-center
-                              justify-center
-                              font-black
-                              text-sm
-                              shadow-sm
-                              ${
-                                idx === 0
-                                  ? 'bg-gradient-to-br from-yellow-300 to-amber-500 text-yellow-950'
-                                  : idx === 1
-                                  ? 'bg-gradient-to-br from-slate-200 to-slate-400 text-slate-700'
-                                  : idx === 2
-                                  ? 'bg-gradient-to-br from-orange-300 to-orange-500 text-orange-950'
-                                  : 'bg-slate-100 text-slate-600'
-                              }
-                            `}
-                          >
-                            {idx + 1}
-                          </div>
-
-                        </td>
-
-                        {/* Club */}
-                        <td className="px-5 py-4">
-
-                          <div className="flex items-center gap-3">
-
-                            {idx < 3 && (
-                              <span className="text-xl">
-                                {idx === 0
-                                  ? '🥇'
-                                  : idx === 1
-                                  ? '🥈'
-                                  : '🥉'}
-                              </span>
-                            )}
-
-                            <div
-                              className={`
-                                font-bold
-                                ${
-                                  idx === 0
-                                    ? 'text-slate-900'
-                                    : 'text-slate-800'
-                                }
-                              `}
-                            >
-                              {s.club.name}
-                            </div>
-
-                          </div>
-
-                        </td>
-
-                        {/* Gold */}
-                        <td className="px-5 py-4 text-center">
-
-                          <span className="inline-flex items-center justify-center min-w-10 px-2.5 py-1 rounded-full bg-yellow-50 border border-yellow-200 text-yellow-700 font-bold">
-
-                            <Medal className="w-4 h-4 mr-1" />
-
-                            {s.gold}
-
-                          </span>
-
-                        </td>
-
-                        {/* Silver */}
-                        <td className="px-5 py-4 text-center">
-
-                          <span className="inline-flex items-center justify-center min-w-10 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600 font-bold">
-
-                            <Medal className="w-4 h-4 mr-1" />
-
-                            {s.silver}
-
-                          </span>
-
-                        </td>
-
-                        {/* Bronze */}
-                        <td className="px-5 py-4 text-center">
-
-                          <span className="inline-flex items-center justify-center min-w-10 px-2.5 py-1 rounded-full bg-orange-50 border border-orange-200 text-orange-700 font-bold">
-
-                            <Medal className="w-4 h-4 mr-1" />
-
-                            {s.bronze}
-
-                          </span>
-
-                        </td>
-
-                        {/* Points */}
-                        <td className="px-5 py-4 text-right">
-
-                          <div className="inline-flex items-center gap-1.5">
-
-                            <span className="text-xl font-black text-cyan-600">
-                              {s.points}
-                            </span>
-
-                            <span className="text-xs font-semibold text-slate-400">
-                              pts
-                            </span>
-
-                          </div>
-
-                        </td>
-
-                      </tr>
-
-                    ))}
-
-                  </tbody>
-
-                </table>
-
+            {/* Silver */}
+            <div className="text-center">
+              <div className="text-xs text-slate-500 font-semibold">
+                Silver
               </div>
 
-            </section>
+              <div className="font-bold text-slate-800">
+                {s.silver}
+              </div>
+            </div>
+
+            {/* Bronze */}
+            <div className="text-center">
+              <div className="text-xs text-orange-600 font-semibold">
+                Bronze
+              </div>
+
+              <div className="font-bold text-slate-800">
+                {s.bronze}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Points */}
+          <div className="text-right">
+
+            <div className="flex items-center gap-1.5 text-slate-800 font-mono font-semibold">
+              <Trophy className="w-4 h-4 text-cyan-500" />
+
+              {s.points}
+              <span className="text-xs text-slate-400 font-sans">
+                pts
+              </span>
+            </div>
+
+            {/* Mobile medal summary */}
+            <div className="sm:hidden text-xs text-slate-500 mt-1">
+              🥇 {s.gold} &nbsp;
+              🥈 {s.silver} &nbsp;
+              🥉 {s.bronze}
+            </div>
+
+          </div>
+
+        </div>
+      );
+    })}
+
+  </div>
+
+</section>
 
             {/* =================================================
                 POINT SYSTEM RULES
