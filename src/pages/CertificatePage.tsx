@@ -729,8 +729,8 @@ export default function CertificatePage({ settings }: Props) {
 
       drawCenteredText(
         eventName,
-        W * (355 / 1491),
-        H * (680 / 1055),
+        W * (350 / 1491),
+        H * (681 / 1055),
         W * (300 / 1491),
         27 * scaleY,
         'Montserrat, Arial, sans-serif',
@@ -751,7 +751,7 @@ export default function CertificatePage({ settings }: Props) {
 
       drawCenteredText(
         String(ageGroup),
-        W * (750 / 1491),
+        W * (745 / 1491),
         H * (681 / 1055),
         W * (300 / 1491),
         27 * scaleY,
@@ -788,7 +788,7 @@ export default function CertificatePage({ settings }: Props) {
 
       drawCenteredText(
         positionText,
-        W * (1120 / 1491),
+        W * (1100 / 1491),
         H * (683 / 1055),
         W * (300 / 1491),
         27 * scaleY,
