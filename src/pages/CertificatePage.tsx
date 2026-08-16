@@ -788,8 +788,8 @@ export default function CertificatePage({ settings }: Props) {
 
       drawCenteredText(
         positionText,
-        W * (1190 / 1491),
-        H * (683 / 1055),
+        W * (1140 / 1491),
+        H * (665 / 1055),
         W * (300 / 1491),
         27 * scaleY,
         'Montserrat, Arial, sans-serif',
