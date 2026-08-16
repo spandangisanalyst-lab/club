@@ -1073,36 +1073,39 @@ export default function CertificatePage({ settings }: Props) {
                 <option value="All">
                   All Events
                 </option>
+
                 {eventOptions.map(
-                  ([id, name]) => {
-                    const result = allResults.find(
-                      (r) =>
-                        String(r.event.id) === id
-                    );
-
-                    const gender =
-                      (result?.event as any)?.gender ||
-                      (result?.event as any)?.sex ||
-                      '';
-
-                    return (
-                      <option
-                        key={id}
-                        value={id}
+                ([id, name]) => {
+                  const result = allResults.find(
+                    (r) =>
+                      String(r.event.id) === id
+                  );
+                  const gender =
+                    (result?.event as any)?.gender ||
+                    (result?.event as any)?.sex ||
+                    '';
+                  const ageGroup =
+                    (result?.event as any)?.age_group ||
+                    '';
+                  return (
+                    <option
+                      key={id}
+                      value={id}
                       >
-                        {name}
-                        {gender
-                          ? ` (${gender})`
-                          : ''}
-                      </option>
-                    );
-                  }
-                )}
-
-               
-              </select>
-
-            </div>
+                      {name}
+                      {gender
+                      ? ` (${gender})`
+                      : ''}
+                      {ageGroup
+                      ? ` - ${ageGroup}`
+                      : ''}
+                    </option>
+                  );
+                }
+              )}
+                
+                
+            
 
             {/* Age Group */}
             <div>
