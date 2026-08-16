@@ -600,347 +600,238 @@ export default function CertificatePage({ settings }: Props) {
     setSearched(true);
   };
 
-  /*
-   * ============================================================
-   * GENERATE CERTIFICATE
-   * ============================================================
-   */
-
-  const generateCertificate = (
+    const generateCertificate = (
     data: CertData
   ) => {
-    const canvas =
-      canvasRef.current;
+    const canvas = canvasRef.current;
 
     if (!canvas) return;
 
-    const ctx =
-      canvas.getContext('2d');
+    const ctx = canvas.getContext('2d');
 
     if (!ctx) return;
 
-    const W = 1200;
-    const H = 850;
+    /*
+     * ============================================================
+     * LOAD THE ACTUAL CERTIFICATE TEMPLATE
+     * ============================================================
+     */
 
-    canvas.width = W;
-    canvas.height = H;
+    const image = new Image();
 
-    // Background
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillRect(
-      0,
-      0,
-      W,
-      H
-    );
+    image.onload = () => {
+      /*
+       * Use the exact dimensions of certificate.png
+       */
+      const W = image.naturalWidth;
+      const H = image.naturalHeight;
 
-    // Outer border
-    ctx.strokeStyle = '#0e7490';
-    ctx.lineWidth = 8;
-    ctx.strokeRect(
-      30,
-      30,
-      W - 60,
-      H - 60
-    );
+      canvas.width = W;
+      canvas.height = H;
 
-    // Inner border
-    ctx.strokeStyle = '#0891b2';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(
-      50,
-      50,
-      W - 100,
-      H - 100
-    );
-
-    // Decorative corners
-    ctx.fillStyle = '#0e7490';
-
-    [
-      [50, 50],
-      [W - 50, 50],
-      [50, H - 50],
-      [W - 50, H - 50],
-    ].forEach(
-      ([x, y]) => {
-        ctx.beginPath();
-        ctx.arc(
-          x,
-          y,
-          6,
-          0,
-          Math.PI * 2
-        );
-        ctx.fill();
-      }
-    );
-
-    // Title
-    ctx.fillStyle = '#0f172a';
-    ctx.font =
-      'bold 42px Georgia, serif';
-    ctx.textAlign = 'center';
-
-    ctx.fillText(
-      'Certificate of Achievement',
-      W / 2,
-      130
-    );
-
-    // Organizer
-    ctx.fillStyle = '#0e7490';
-    ctx.font =
-      '20px Georgia, serif';
-
-    ctx.fillText(
-      settings.organizer ||
-        'Cooch Behar Town Club',
-      W / 2,
-      170
-    );
-
-    // Subtitle
-    ctx.fillStyle = '#64748b';
-    ctx.font =
-      '16px Arial, sans-serif';
-
-    ctx.fillText(
-      settings.site_title ||
-        '43rd Inter Club Swimming Competition',
-      W / 2,
-      200
-    );
-
-    // Divider
-    ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 1;
-
-    ctx.beginPath();
-    ctx.moveTo(
-      W / 2 - 200,
-      225
-    );
-    ctx.lineTo(
-      W / 2 + 200,
-      225
-    );
-    ctx.stroke();
-
-    // This is to certify that
-    ctx.fillStyle = '#334155';
-    ctx.font =
-      '22px Arial, sans-serif';
-
-    ctx.fillText(
-      'This is to certify that',
-      W / 2,
-      280
-    );
-
-    // Participant name
-    ctx.fillStyle = '#0f172a';
-    ctx.font =
-      'bold 38px Georgia, serif';
-
-    ctx.fillText(
-      data.participant.name,
-      W / 2,
-      340
-    );
-
-    // Club
-    ctx.fillStyle = '#64748b';
-    ctx.font =
-      '18px Arial, sans-serif';
-
-    ctx.fillText(
-      `representing ${
-        data.club?.name ||
-        'Independent'
-      }`,
-      W / 2,
-      380
-    );
-
-    // Achievement
-    ctx.fillStyle = '#334155';
-    ctx.font =
-      '22px Arial, sans-serif';
-
-    const medalText =
-      data.entry.medal
-        ? `won ${data.entry.medal} in`
-        : 'participated in';
-
-    ctx.fillText(
-      `has ${medalText}`,
-      W / 2,
-      440
-    );
-
-    // Event
-    ctx.fillStyle = '#0e7490';
-    ctx.font =
-      'bold 28px Georgia, serif';
-
-    ctx.fillText(
-      data.event.event_name,
-      W / 2,
-      490
-    );
-
-    // Category
-    ctx.fillStyle = '#64748b';
-    ctx.font =
-      '18px Arial, sans-serif';
-
-    ctx.fillText(
-      `Category: ${data.event.category}`,
-      W / 2,
-      525
-    );
-
-    // Time
-    if (
-      data.entry.finish_time_ms
-    ) {
-      ctx.fillStyle = '#334155';
-      ctx.font =
-        '20px Arial, sans-serif';
-
-      ctx.fillText(
-        `Finishing Time: ${formatTime(
-          data.entry.finish_time_ms
-        )}`,
-        W / 2,
-        575
+      /*
+       * Draw the original certificate template
+       * as the complete background.
+       */
+      ctx.drawImage(
+        image,
+        0,
+        0,
+        W,
+        H
       );
-    }
 
-    // Rank
-    if (
-      data.entry.overall_rank
-    ) {
-      ctx.fillStyle = '#334155';
-      ctx.font =
-        '20px Arial, sans-serif';
+      /*
+       * ========================================================
+       * HELPER
+       * Draw centered text with automatic size reduction
+       * ========================================================
+       */
 
-      const rankSuffix =
-        data.entry.overall_rank === 1
-          ? 'st'
-          : data.entry.overall_rank === 2
-          ? 'nd'
-          : data.entry.overall_rank === 3
-          ? 'rd'
-          : 'th';
+      const drawCenteredText = (
+        text: string,
+        x: number,
+        y: number,
+        maxWidth: number,
+        fontSize: number,
+        fontFamily: string,
+        color: string,
+        weight = 'normal'
+      ) => {
+        let size = fontSize;
 
-      ctx.fillText(
-        `Overall Rank: ${
-          data.entry.overall_rank
-        }${rankSuffix}`,
-        W / 2,
-        610
-      );
-    }
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = color;
 
-    // Divider
-    ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 1;
+        while (size > 12) {
+          ctx.font =
+            `${weight} ${size}px ${fontFamily}`;
 
-    ctx.beginPath();
-    ctx.moveTo(
-      W / 2 - 200,
-      660
-    );
-    ctx.lineTo(
-      W / 2 + 200,
-      660
-    );
-    ctx.stroke();
+          if (
+            ctx.measureText(text).width <=
+            maxWidth
+          ) {
+            break;
+          }
 
-    // Date & venue
-    ctx.fillStyle = '#64748b';
-    ctx.font =
-      '16px Arial, sans-serif';
-
-    ctx.fillText(
-      `Held on ${new Date(
-        settings.event_date ||
-          '2026-08-15'
-      ).toLocaleDateString(
-        'en-US',
-        {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
+          size -= 1;
         }
-      )}`,
-      W / 2,
-      695
-    );
 
-    ctx.fillText(
-      settings.venue ||
-        'Cooch Behar Rajbari Stadium Swimming Pool Complex',
-      W / 2,
-      720
-    );
+        ctx.fillText(
+          text,
+          x,
+          y
+        );
+      };
 
-    // Signature line
-    ctx.strokeStyle = '#94a3b8';
-    ctx.lineWidth = 1;
+      /*
+       * ========================================================
+       * SCALE
+       *
+       * Your template is designed around 1536 × 1024.
+       * These values automatically scale if the PNG is different.
+       * ========================================================
+       */
 
-    ctx.beginPath();
-    ctx.moveTo(150, 780);
-    ctx.lineTo(350, 780);
-    ctx.stroke();
+      const scaleX = W / 1536;
+      const scaleY = H / 1024;
 
-    ctx.beginPath();
-    ctx.moveTo(
-      W - 350,
-      780
-    );
-    ctx.lineTo(
-      W - 150,
-      780
-    );
-    ctx.stroke();
+      /*
+       * ========================================================
+       * 1. PLAYER NAME
+       *
+       * Position: centre of the name line
+       * ========================================================
+       */
 
-    ctx.fillStyle = '#334155';
-    ctx.font =
-      '14px Arial, sans-serif';
-
-    ctx.fillText(
-      'Organizer',
-      250,
-      805
-    );
-
-    ctx.fillText(
-      'Chief Judge',
-      W - 250,
-      805
-    );
-
-    // Download
-    const dataUrl =
-      canvas.toDataURL(
-        'image/png'
+      drawCenteredText(
+        data.participant.name,
+        W * (768 / 1536),
+        H * (532 / 1024),
+        W * (900 / 1536),
+        58 * scaleY,
+        'Georgia, serif',
+        '#10265f',
+        'bold'
       );
 
-    downloadDataUrl(
-      dataUrl,
-      `Certificate_${data.participant.name.replace(
-        /\s+/g,
-        '_'
-      )}_${data.event.event_name.replace(
-        /\s+/g,
-        '_'
-      )}.png`
-    );
-  };
+      /*
+       * ========================================================
+       * 2. EVENT
+       *
+       * ========================================================
+       */
 
+      const eventName =
+        data.event.event_name ||
+        'Event';
+
+      drawCenteredText(
+        eventName,
+        W * (365 / 1536),
+        H * (681 / 1024),
+        W * (300 / 1536),
+        27 * scaleY,
+        'Arial, sans-serif',
+        '#111827',
+        'normal'
+      );
+
+      /*
+       * ========================================================
+       * 3. AGE GROUP
+       *
+       * ========================================================
+       */
+
+      const ageGroup =
+        (data.event as any)?.age_group ||
+        '—';
+
+      drawCenteredText(
+        String(ageGroup),
+        W * (768 / 1536),
+        H * (681 / 1024),
+        W * (300 / 1536),
+        27 * scaleY,
+        'Arial, sans-serif',
+        '#111827',
+        'normal'
+      );
+
+      /*
+       * ========================================================
+       * 4. POSITION
+       *
+       * ========================================================
+       */
+
+      const position =
+        data.entry.overall_rank;
+
+      let positionText = '—';
+
+      if (position) {
+        const suffix =
+          position === 1
+            ? 'st'
+            : position === 2
+            ? 'nd'
+            : position === 3
+            ? 'rd'
+            : 'th';
+
+        positionText =
+          `${position}${suffix} Position`;
+      }
+
+      drawCenteredText(
+        positionText,
+        W * (1170 / 1536),
+        H * (681 / 1024),
+        W * (300 / 1536),
+        27 * scaleY,
+        'Arial, sans-serif',
+        '#111827',
+        'normal'
+      );
+
+      /*
+       * ========================================================
+       * DOWNLOAD PNG
+       * ========================================================
+       */
+
+      const dataUrl =
+        canvas.toDataURL(
+          'image/png'
+        );
+
+      downloadDataUrl(
+        dataUrl,
+        `Certificate_${data.participant.name.replace(
+          /\s+/g,
+          '_'
+        )}_${eventName.replace(
+          /\s+/g,
+          '_'
+        )}.png`
+      );
+    };
+
+    /*
+     * IMPORTANT:
+     *
+     * certificate.png must be inside:
+     *
+     * public/images/certificate.png
+     *
+     * Because public files are served from /images/...
+     */
+    image.src =
+      '/images/certificate.png';
+  };
   /*
    * ============================================================
    * CLEAR FILTERS
