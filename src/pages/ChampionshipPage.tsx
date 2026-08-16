@@ -539,7 +539,7 @@ export default function ChampionshipPage({
                       'border-orange-300',
                     ];
 
-                    const medals = ['🥈', '🥇', '🥉'];
+                    const medals = ['🥇','🥈', '🥉'];
 
                     return (
                       <div
