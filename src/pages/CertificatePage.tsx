@@ -707,8 +707,8 @@ export default function CertificatePage({ settings }: Props) {
 
       drawCenteredText(
         data.participant.name,
-        W * (768 / 1491),
-        H * (525 / 1055),
+        W * (745 / 1491),
+        H * (490 / 1055),
         W * (850 / 1491),
         58 * scaleY,
         'Georgia, serif',
@@ -729,9 +729,9 @@ export default function CertificatePage({ settings }: Props) {
 
       drawCenteredText(
         eventName,
-        W * (365 / 1491),
-        H * (681 / 1055),
-        W * (300 / 1536),
+        W * (350 / 1491),
+        H * (635 / 1055),
+        W * (300 / 1491),
         27 * scaleY,
         'Montserrat, Arial, sans-serif',
         '#111827',
@@ -751,9 +751,9 @@ export default function CertificatePage({ settings }: Props) {
 
       drawCenteredText(
         String(ageGroup),
-        W * (768 / 1491),
-        H * (681 / 1055),
-        W * (300 / 1536),
+        W * (726 / 1491),
+        H * (635 / 1055),
+        W * (300 / 1491),
         27 * scaleY,
         'Montserrat, Arial, sans-serif',
         '#111827',
@@ -788,9 +788,9 @@ export default function CertificatePage({ settings }: Props) {
 
       drawCenteredText(
         positionText,
-        W * (1170 / 1491),
-        H * (681 / 1055),
-        W * (300 / 1536),
+        W * (1098 / 1491),
+        H * (635 / 1055),
+        W * (300 / 1491),
         27 * scaleY,
         'Montserrat, Arial, sans-serif',
         '#111827',
