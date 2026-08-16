@@ -619,7 +619,7 @@ export default function CertificatePage({ settings }: Props) {
 
     const image = new Image();
 
-    image.onload = () => {
+    image.onload = async () => {
       /*
        * Use the exact dimensions of certificate.png
        */
@@ -633,7 +633,9 @@ export default function CertificatePage({ settings }: Props) {
        * Draw the original certificate template
        * as the complete background.
        */
-      ctx.drawImage(
+      await document.fonts.load(
+        '500 27px Montserrat'
+        ctx.drawImage(
         image,
         0,
         0,
@@ -735,7 +737,7 @@ export default function CertificatePage({ settings }: Props) {
         27 * scaleY,
         'Montserrat, Arial, sans-serif',
         '#111827',
-        'normal'
+        '500'
       );
 
       /*
@@ -757,7 +759,7 @@ export default function CertificatePage({ settings }: Props) {
         27 * scaleY,
         'Montserrat, Arial, sans-serif',
         '#111827',
-        'normal'
+        '500'
       );
 
       /*
@@ -794,7 +796,7 @@ export default function CertificatePage({ settings }: Props) {
         27 * scaleY,
         'Montserrat, Arial, sans-serif',
         '#111827',
-        'normal'
+        '500'
       );
 
       /*
