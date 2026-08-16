@@ -522,20 +522,20 @@ export default function ChampionshipPage({
                     ];
 
                     const colors = [
-                      'from-slate-300 via-gray-300 to-slate-400',
                       'from-yellow-200 via-yellow-400 to-amber-500',
+                      'from-slate-300 via-gray-300 to-slate-400',
                       'from-orange-300 via-orange-400 to-orange-600',
                     ];
 
                     const textColors = [
-                      'text-slate-700',
                       'text-yellow-900',
+                      'text-slate-700',
                       'text-orange-900',
                     ];
 
                     const podiumBorder = [
-                      'border-slate-300',
                       'border-yellow-300',
+                      'border-slate-300',
                       'border-orange-300',
                     ];
 
