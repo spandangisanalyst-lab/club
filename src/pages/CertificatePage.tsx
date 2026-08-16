@@ -1085,7 +1085,7 @@ export default function CertificatePage({ settings }: Props) {
                     (result?.event as any)?.sex ||
                     '';
                   const ageGroup =
-                    (result?.event as any)?.age_group ||
+                    (result?.event as any)?.group ||
                     '';
                   return (
                     <option
