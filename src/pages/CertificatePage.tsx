@@ -620,28 +620,31 @@ export default function CertificatePage({ settings }: Props) {
     const image = new Image();
 
     image.onload = async () => {
-      /*
-       * Use the exact dimensions of certificate.png
-       */
-      const W = image.naturalWidth;
-      const H = image.naturalHeight;
+  /*
+   * Use the exact dimensions of certificate.png
+   */
+  const W = image.naturalWidth;
+  const H = image.naturalHeight;
 
-      canvas.width = W;
-      canvas.height = H;
+  canvas.width = W;
+  canvas.height = H;
 
-      /*
-       * Draw the original certificate template
-       * as the complete background.
-       */
-      await document.fonts.load(
-        '500 27px Montserrat'
-        ctx.drawImage(
-        image,
-        0,
-        0,
-        W,
-        H
-      );
+  /*
+   * Wait for Montserrat to load before drawing text.
+   */
+  await document.fonts.load('500 27px Montserrat');
+
+  /*
+   * Draw the original certificate template
+   * as the complete background.
+   */
+  ctx.drawImage(
+    image,
+    0,
+    0,
+    W,
+    H
+  );
 
       /*
        * ========================================================
