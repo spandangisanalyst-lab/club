@@ -1,6 +1,35 @@
 import { useState, useEffect } from 'react';
 import { Medal, Trophy, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+
+/*
+ * Convert the time saved by Live Race Console
+ * e.g. "00:58.32" -> 58320 milliseconds
+ */
+const parseTimeToMs = (value: unknown): number | null => {
+  if (value === null || value === undefined) return null;
+
+  const text = String(value).trim();
+  if (!text) return null;
+
+  // Already milliseconds
+  if (/^\\d+$/.test(text)) {
+    const numberValue = Number(text);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  }
+
+  // Format: MM:SS or MM:SS.xxx
+  const match = text.match(/^(\\d+):(\\d{2})(?:\\.(\\d{1,3}))?$/);
+  if (!match) return null;
+
+  const minutes = Number(match[1]);
+  const seconds = Number(match[2]);
+  const fraction = (match[3] || '0').padEnd(3, '0');
+  const milliseconds = Number(fraction);
+
+  return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
+};
+
 import type {
   SettingsMap,
   Club,
@@ -70,6 +99,36 @@ export default function ChampionshipPage({
 
   useEffect(() => {
     loadStandings();
+
+    const channel = supabase
+      .channel('championship-standings-live')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'heat_entries',
+        },
+        () => {
+          loadStandings();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'heats',
+        },
+        () => {
+          loadStandings();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const loadStandings = async () => {
