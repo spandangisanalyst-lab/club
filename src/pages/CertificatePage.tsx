@@ -8,7 +8,7 @@ import type {
   SwimEvent,
   HeatEntry,
 } from '../lib/types';
-import { formatTime, downloadDataUrl } from '../lib/utils';
+import { formatTime } from '../lib/utils';
 
 interface Props {
   settings: SettingsMap;
@@ -808,21 +808,39 @@ export default function CertificatePage({ settings }: Props) {
        * ========================================================
        */
 
-      const dataUrl =
-        canvas.toDataURL(
-          'image/png'
-        );
+      // ============================================================
+      // MOBILE-SAFE DOWNLOAD
+      // Uses the same browser-native approach as the admin certificate
+      // flow, while keeping the existing canvas certificate generation.
+      // ============================================================
 
-      downloadDataUrl(
-        dataUrl,
-        `Certificate_${data.participant.name.replace(
-          /\s+/g,
-          '_'
-        )}_${eventName.replace(
-          /\s+/g,
-          '_'
-        )}.png`
-      );
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          alert('Unable to generate certificate. Please try again.');
+          return;
+        }
+
+        const url = URL.createObjectURL(blob);
+
+        const fileName =
+          `Certificate_${data.participant.name
+            .replace(/[^\\w\\-]+/g, '_')}_${eventName
+            .replace(/[^\\w\\-]+/g, '_')}.png`;
+
+        const link = document.createElement('a');
+
+        link.href = url;
+        link.download = fileName;
+        link.style.display = 'none';
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+        }, 2000);
+      }, 'image/png');
     };
 
     /*
