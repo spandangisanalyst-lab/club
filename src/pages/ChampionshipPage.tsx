@@ -1,33 +1,25 @@
 import { useState, useEffect } from 'react';
 import { Medal, Trophy, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-
-/*
- * Convert the time saved by Live Race Console
- * e.g. "00:58.32" -> 58320 milliseconds
- */
+/* Convert Live Race Console result time to milliseconds */
 const parseTimeToMs = (value: unknown): number | null => {
   if (value === null || value === undefined) return null;
-
   const text = String(value).trim();
   if (!text) return null;
 
-  // Already milliseconds
-  if (/^\\d+$/.test(text)) {
+  if (/^\d+$/.test(text)) {
     const numberValue = Number(text);
     return Number.isFinite(numberValue) ? numberValue : null;
   }
 
-  // Format: MM:SS or MM:SS.xxx
-  const match = text.match(/^(\\d+):(\\d{2})(?:\\.(\\d{1,3}))?$/);
+  const match = text.match(/^(\d+):(\d{2})(?:\.(\d{1,3}))?$/);
   if (!match) return null;
 
   const minutes = Number(match[1]);
   const seconds = Number(match[2]);
   const fraction = (match[3] || '0').padEnd(3, '0');
-  const milliseconds = Number(fraction);
 
-  return minutes * 60 * 1000 + seconds * 1000 + milliseconds;
+  return minutes * 60 * 1000 + seconds * 1000 + Number(fraction);
 };
 
 import type {
@@ -136,36 +128,26 @@ export default function ChampionshipPage({
 
     try {
       /*
-       * ========================================================
-       * LOAD ALL HEAT ENTRIES
-       * ========================================================
-       *
        * IMPORTANT:
-       * Do NOT filter here by overall_rank or medal.
-       *
-       * The public Results page can calculate the declared position
-       * and medal from finish time when they are not saved in the DB.
-       * The Championship page must use the SAME logic, otherwise clubs
-       * whose medal field is NULL are silently excluded.
+       * This section intentionally follows ResultsPage's data pipeline.
+       * Championship points are calculated from the SAME final results
+       * that the public Results page displays.
        */
+
+      // 1. Load ALL heat entries — exactly like ResultsPage.
       const { data: entries, error: entriesError } = await supabase
         .from('heat_entries')
         .select('*');
 
-      if (entriesError) {
-        throw entriesError;
-      }
+      if (entriesError) throw entriesError;
 
       if (!entries || entries.length === 0) {
+        console.log('Championship: no heat_entries found');
         setStandings([]);
         return;
       }
 
-      /*
-       * ========================================================
-       * HEATS
-       * ========================================================
-       */
+      // 2. Load all heats used by those entries.
       const heatIds = [
         ...new Set(
           entries
@@ -175,6 +157,7 @@ export default function ChampionshipPage({
       ];
 
       if (heatIds.length === 0) {
+        console.log('Championship: no heat IDs found');
         setStandings([]);
         return;
       }
@@ -184,23 +167,15 @@ export default function ChampionshipPage({
         .select('*')
         .in('id', heatIds);
 
-      if (heatsError) {
-        throw heatsError;
-      }
+      if (heatsError) throw heatsError;
 
       if (!heats || heats.length === 0) {
+        console.log('Championship: no heats found');
         setStandings([]);
         return;
       }
 
-      /*
-       * ========================================================
-       * ONLY FINISHED HEATS
-       * ========================================================
-       *
-       * This matches ResultsPage exactly.
-       * Live / unfinished races must never contribute points.
-       */
+      // 3. EXACTLY like ResultsPage: only finished heats.
       const finishedHeatIds = new Set(
         heats
           .filter((heat: any) => heat.status === 'finished')
@@ -212,15 +187,16 @@ export default function ChampionshipPage({
       );
 
       if (finishedEntries.length === 0) {
+        console.log('Championship: no finished entries', {
+          totalEntries: entries.length,
+          totalHeats: heats.length,
+          finishedHeats: finishedHeatIds.size,
+        });
         setStandings([]);
         return;
       }
 
-      /*
-       * ========================================================
-       * PARTICIPANTS
-       * ========================================================
-       */
+      // 4. Participants — SAME as ResultsPage.
       const participantIds = [
         ...new Set(
           finishedEntries
@@ -229,23 +205,35 @@ export default function ChampionshipPage({
         ),
       ];
 
-      const {
-        data: participants,
-        error: participantsError,
-      } = await supabase
-        .from('participants')
-        .select('*')
-        .in('id', participantIds);
+      const { data: participants, error: participantsError } =
+        await supabase
+          .from('participants')
+          .select('*')
+          .in('id', participantIds);
 
-      if (participantsError) {
-        throw participantsError;
-      }
+      if (participantsError) throw participantsError;
 
-      /*
-       * ========================================================
-       * EVENTS
-       * ========================================================
-       */
+      // 5. Clubs — SAME relationship as ResultsPage:
+      // participant.club_id -> clubs.id
+      const clubIds = [
+        ...new Set(
+          (participants || [])
+            .map((p: any) => p.club_id)
+            .filter(Boolean)
+        ),
+      ];
+
+      const { data: clubs, error: clubsError } =
+        clubIds.length > 0
+          ? await supabase
+              .from('clubs')
+              .select('*')
+              .in('id', clubIds)
+          : { data: [], error: null };
+
+      if (clubsError) throw clubsError;
+
+      // 6. Events — SAME as ResultsPage.
       const eventIds = [
         ...new Set(
           heats
@@ -255,176 +243,102 @@ export default function ChampionshipPage({
         ),
       ];
 
-      const {
-        data: events,
-        error: eventsError,
-      } = await supabase
+      const { data: events, error: eventsError } = await supabase
         .from('events')
         .select('*')
         .in('id', eventIds);
 
-      if (eventsError) {
-        throw eventsError;
-      }
+      if (eventsError) throw eventsError;
 
-      /*
-       * ========================================================
-       * CLUBS
-       * ========================================================
-       */
-      const clubIds = [
-        ...new Set(
-          (participants || [])
-            .map((participant: any) => participant.club_id)
-            .filter(Boolean)
-        ),
-      ];
-
-      let clubs: Club[] = [];
-
-      if (clubIds.length > 0) {
-        const {
-          data: clubData,
-          error: clubsError,
-        } = await supabase
-          .from('clubs')
-          .select('*')
-          .in('id', clubIds);
-
-        if (clubsError) {
-          throw clubsError;
-        }
-
-        clubs = clubData || [];
-      }
-
-      /*
-       * ========================================================
-       * MAPS
-       * ========================================================
-       */
       const participantMap = new Map(
-        (participants || []).map(
-          (participant: Participant) => [
-            participant.id,
-            participant,
-          ]
-        )
-      );
-
-      const heatMap = new Map(
-        heats.map((heat: any) => [
-          heat.id,
-          heat,
-        ])
-      );
-
-      const eventMap = new Map(
-        (events || []).map(
-          (event: SwimEvent) => [
-            event.id,
-            event,
-          ]
-        )
+        (participants || []).map((p: any) => [p.id, p])
       );
 
       const clubMap = new Map(
-        clubs.map((club: Club) => [
-          club.id,
-          club,
-        ])
+        (clubs || []).map((c: any) => [c.id, c])
+      );
+
+      const heatMap = new Map(
+        heats.map((h: any) => [h.id, h])
+      );
+
+      const eventMap = new Map(
+        (events || []).map((e: any) => [e.id, e])
       );
 
       /*
-       * ========================================================
-       * BUILD EVENT RESULT GROUPS
-       * ========================================================
-       *
-       * We intentionally calculate medals here instead of trusting
-       * heat_entries.medal alone.
-       *
-       * This fixes the main discrepancy:
-       *
-       *   overall_rank = 1 but medal = NULL
-       *
-       * was previously ignored by the Championship page.
+       * 7. Build normalized result rows using EXACTLY the same
+       * time fields as ResultsPage.
        */
-      const grouped: Record<string, any[]> = {};
+      const normalizedRows: any[] = [];
 
       for (const rawEntry of finishedEntries as any[]) {
-        const participant = participantMap.get(
-          rawEntry.participant_id
-        );
-
+        const participant = participantMap.get(rawEntry.participant_id);
         const heat = heatMap.get(rawEntry.heat_id);
-
         const event = heat
           ? eventMap.get(heat.event_id)
           : undefined;
 
-        if (!participant || !event) {
-          continue;
-        }
+        if (!participant || !event) continue;
 
-        /*
-         * Live Race Console normally saves the time in `time`.
-         * Support all known result fields.
-         */
         const timeMs = parseTimeToMs(
           rawEntry.time ??
           rawEntry.finish_time ??
           rawEntry.finish_time_ms
         );
 
-        /*
-         * A championship medal must come from a valid result.
-         */
-        if (timeMs === null || timeMs <= 0) {
-          continue;
-        }
+        // EXACTLY like ResultsPage: invalid finished time is ignored.
+        if (timeMs === null || timeMs <= 0) continue;
 
-        const eventId = String(event.id);
-
-        if (!grouped[eventId]) {
-          grouped[eventId] = [];
-        }
-
-        grouped[eventId].push({
+        normalizedRows.push({
           rawEntry,
           participant,
+          club: participant.club_id
+            ? clubMap.get(participant.club_id) || null
+            : null,
           event,
           timeMs,
         });
       }
 
       /*
-       * ========================================================
-       * CALCULATE RANK + MEDAL FOR EVERY EVENT
-       * ========================================================
-       *
-       * EXACT SAME PRINCIPLE AS ResultsPage:
-       *
-       * 1. If Admin saved overall_rank, preserve it.
-       * 2. If no saved ranks exist for that event, calculate rank
-       *    from finish time.
-       * 3. Medal is always derived from the final rank when the
-       *    database medal is missing.
+       * 8. Group by EVENT, exactly like ResultsPage.
+       * This prevents a swimmer's result in one event from affecting
+       * the ranking of another event.
        */
-      const championshipRows: Array<{
-        participant: Participant;
-        event: SwimEvent;
-        clubId: string;
-        rank: number;
-        medal: 'Gold' | 'Silver' | 'Bronze' | null;
-      }> = [];
+      const grouped: Record<string, any[]> = {};
 
-      Object.values(grouped).forEach((eventRows: any[]) => {
+      for (const row of normalizedRows) {
+        const eventId = String(row.event.id);
+
+        if (!grouped[eventId]) {
+          grouped[eventId] = [];
+        }
+
+        grouped[eventId].push(row);
+      }
+
+      /*
+       * 9. Produce the FINAL result rows.
+       *
+       * Saved overall_rank is preferred.
+       * If an event has no saved ranks, rank by finish time.
+       *
+       * Medal is ALWAYS determined from final rank when medal is absent.
+       */
+      const finalRows: any[] = [];
+
+      Object.values(grouped).forEach((eventRows) => {
         eventRows.sort((a, b) => {
           const rankA = a.rawEntry.overall_rank;
           const rankB = b.rawEntry.overall_rank;
 
-          if (rankA !== null && rankA !== undefined &&
-              rankB !== null && rankB !== undefined) {
+          if (
+            rankA !== null &&
+            rankA !== undefined &&
+            rankB !== null &&
+            rankB !== undefined
+          ) {
             return Number(rankA) - Number(rankB);
           }
 
@@ -437,21 +351,28 @@ export default function ChampionshipPage({
             row.rawEntry.overall_rank !== undefined
         );
 
-        eventRows.forEach((row, index) => {
-          const rank = hasSavedRanks
-            ? (
-                row.rawEntry.overall_rank !== null &&
-                row.rawEntry.overall_rank !== undefined
-                  ? Number(row.rawEntry.overall_rank)
-                  : index + 1
-              )
-            : index + 1;
+        if (!hasSavedRanks) {
+          eventRows.forEach((row, index) => {
+            row.finalRank = index + 1;
+          });
+        } else {
+          eventRows.forEach((row, index) => {
+            row.finalRank =
+              row.rawEntry.overall_rank !== null &&
+              row.rawEntry.overall_rank !== undefined
+                ? Number(row.rawEntry.overall_rank)
+                : index + 1;
+          });
+        }
+
+        eventRows.forEach((row) => {
+          const rank = row.finalRank;
 
           /*
-           * NEVER depend only on rawEntry.medal.
-           * If it is missing, derive it from the final position.
+           * Prefer an explicitly saved medal ONLY when it is one of
+           * the valid championship medals. Otherwise derive from rank.
            */
-          let medal: 'Gold' | 'Silver' | 'Bronze' | null =
+          let medal =
             row.rawEntry.medal === 'Gold' ||
             row.rawEntry.medal === 'Silver' ||
             row.rawEntry.medal === 'Bronze'
@@ -469,96 +390,57 @@ export default function ChampionshipPage({
                 : null;
           }
 
-          if (!row.participant.club_id) {
-            return;
-          }
-
-          /*
-           * Only medal positions contribute to the Championship.
-           */
-          if (!medal) {
-            return;
-          }
-
-          championshipRows.push({
-            participant: row.participant,
-            event: row.event,
-            clubId: row.participant.club_id,
-            rank,
+          finalRows.push({
+            ...row,
             medal,
           });
         });
       });
 
       /*
-       * ========================================================
-       * CALCULATE CLUB POINTS
-       * ========================================================
+       * 10. Calculate club championship points from FINAL RESULTS.
        *
-       * Gold   = 5
-       * Silver = 3
-       * Bronze = 1
-       *
-       * Under-10 = 0
+       * This is the critical part:
+       * every Gold/Silver/Bronze displayed by ResultsPage contributes.
        */
-      const clubPointsMap =
-        new Map<string, ClubPoints>();
+      const clubPointsMap = new Map<string, ClubPoints>();
 
-      for (const row of championshipRows) {
-        /*
-         * Under-10 results are deliberately excluded.
-         */
-        if (isUnder10(row.event.age_group)) {
-          continue;
+      for (const row of finalRows) {
+        if (!row.participant?.club_id) continue;
+        if (!row.club) continue;
+        if (!row.medal) continue;
+
+        // Under-10 receives zero championship points.
+        if (isUnder10(row.event?.age_group)) continue;
+
+        const clubId = String(row.participant.club_id);
+        const club = row.club;
+
+        if (!clubPointsMap.has(clubId)) {
+          clubPointsMap.set(clubId, {
+            club,
+            points: 0,
+            gold: 0,
+            silver: 0,
+            bronze: 0,
+          });
         }
 
-        const club = clubMap.get(row.clubId);
-
-        if (!club) {
-          continue;
-        }
-
-        if (!clubPointsMap.has(row.clubId)) {
-          clubPointsMap.set(
-            row.clubId,
-            {
-              club,
-              points: 0,
-              gold: 0,
-              silver: 0,
-              bronze: 0,
-            }
-          );
-        }
-
-        const clubPoints =
-          clubPointsMap.get(row.clubId)!;
+        const clubPoints = clubPointsMap.get(clubId)!;
 
         if (row.medal === 'Gold') {
-          clubPoints.points += MEDAL_POINTS.Gold;
+          clubPoints.points += 5;
           clubPoints.gold += 1;
         } else if (row.medal === 'Silver') {
-          clubPoints.points += MEDAL_POINTS.Silver;
+          clubPoints.points += 3;
           clubPoints.silver += 1;
         } else if (row.medal === 'Bronze') {
-          clubPoints.points += MEDAL_POINTS.Bronze;
+          clubPoints.points += 1;
           clubPoints.bronze += 1;
         }
       }
 
-      /*
-       * ========================================================
-       * SORT CLUBS
-       * ========================================================
-       *
-       * 1. Total points
-       * 2. Gold medals
-       * 3. Silver medals
-       * 4. Bronze medals
-       */
-      const sorted = Array.from(
-        clubPointsMap.values()
-      ).sort((a, b) => {
+      const sorted = Array.from(clubPointsMap.values()).sort((a, b) => {
         if (b.points !== a.points) {
           return b.points - a.points;
         }
@@ -574,13 +456,24 @@ export default function ChampionshipPage({
         return b.bronze - a.bronze;
       });
 
+      console.log('CHAMPIONSHIP CALCULATION', {
+        totalEntries: entries.length,
+        finishedEntries: finishedEntries.length,
+        normalizedResults: normalizedRows.length,
+        finalResults: finalRows.length,
+        clubs: sorted.length,
+        standings: sorted.map((s) => ({
+          club: s.club.name,
+          points: s.points,
+          gold: s.gold,
+          silver: s.silver,
+          bronze: s.bronze,
+        })),
+      });
+
       setStandings(sorted);
     } catch (error) {
-      console.error(
-        'Error loading championship standings:',
-        error
-      );
-
+      console.error('CHAMPIONSHIP PAGE ERROR:', error);
       setStandings([]);
     } finally {
       setLoading(false);
