@@ -78,19 +78,20 @@ export default function ChampionshipPage({
     try {
       /*
        * ========================================================
-       * GET DECLARED RESULTS
+       * LOAD ALL HEAT ENTRIES
        * ========================================================
        *
-       * Only entries with an overall_rank are considered.
+       * IMPORTANT:
+       * Do NOT filter here by overall_rank or medal.
+       *
+       * The public Results page can calculate the declared position
+       * and medal from finish time when they are not saved in the DB.
+       * The Championship page must use the SAME logic, otherwise clubs
+       * whose medal field is NULL are silently excluded.
        */
-      const { data: entries, error: entriesError } =
-        await supabase
-          .from('heat_entries')
-          .select('*')
-          .not('overall_rank', 'is', null)
-          .order('overall_rank', {
-            ascending: true,
-          });
+      const { data: entries, error: entriesError } = await supabase
+        .from('heat_entries')
+        .select('*');
 
       if (entriesError) {
         throw entriesError;
@@ -103,12 +104,67 @@ export default function ChampionshipPage({
 
       /*
        * ========================================================
+       * HEATS
+       * ========================================================
+       */
+      const heatIds = [
+        ...new Set(
+          entries
+            .map((entry: any) => entry.heat_id)
+            .filter(Boolean)
+        ),
+      ];
+
+      if (heatIds.length === 0) {
+        setStandings([]);
+        return;
+      }
+
+      const { data: heats, error: heatsError } = await supabase
+        .from('heats')
+        .select('*')
+        .in('id', heatIds);
+
+      if (heatsError) {
+        throw heatsError;
+      }
+
+      if (!heats || heats.length === 0) {
+        setStandings([]);
+        return;
+      }
+
+      /*
+       * ========================================================
+       * ONLY FINISHED HEATS
+       * ========================================================
+       *
+       * This matches ResultsPage exactly.
+       * Live / unfinished races must never contribute points.
+       */
+      const finishedHeatIds = new Set(
+        heats
+          .filter((heat: any) => heat.status === 'finished')
+          .map((heat: any) => heat.id)
+      );
+
+      const finishedEntries = entries.filter((entry: any) =>
+        finishedHeatIds.has(entry.heat_id)
+      );
+
+      if (finishedEntries.length === 0) {
+        setStandings([]);
+        return;
+      }
+
+      /*
+       * ========================================================
        * PARTICIPANTS
        * ========================================================
        */
       const participantIds = [
         ...new Set(
-          entries
+          finishedEntries
             .map((entry: any) => entry.participant_id)
             .filter(Boolean)
         ),
@@ -128,37 +184,13 @@ export default function ChampionshipPage({
 
       /*
        * ========================================================
-       * HEATS
-       * ========================================================
-       */
-      const heatIds = [
-        ...new Set(
-          entries
-            .map((entry: any) => entry.heat_id)
-            .filter(Boolean)
-        ),
-      ];
-
-      const {
-        data: heats,
-        error: heatsError,
-      } = await supabase
-        .from('heats')
-        .select('*')
-        .in('id', heatIds);
-
-      if (heatsError) {
-        throw heatsError;
-      }
-
-      /*
-       * ========================================================
        * EVENTS
        * ========================================================
        */
       const eventIds = [
         ...new Set(
-          (heats || [])
+          heats
+            .filter((heat: any) => finishedHeatIds.has(heat.id))
             .map((heat: any) => heat.event_id)
             .filter(Boolean)
         ),
@@ -222,7 +254,7 @@ export default function ChampionshipPage({
       );
 
       const heatMap = new Map(
-        (heats || []).map((heat: any) => [
+        heats.map((heat: any) => [
           heat.id,
           heat,
         ])
@@ -246,86 +278,190 @@ export default function ChampionshipPage({
 
       /*
        * ========================================================
+       * BUILD EVENT RESULT GROUPS
+       * ========================================================
+       *
+       * We intentionally calculate medals here instead of trusting
+       * heat_entries.medal alone.
+       *
+       * This fixes the main discrepancy:
+       *
+       *   overall_rank = 1 but medal = NULL
+       *
+       * was previously ignored by the Championship page.
+       */
+      const grouped: Record<string, any[]> = {};
+
+      for (const rawEntry of finishedEntries as any[]) {
+        const participant = participantMap.get(
+          rawEntry.participant_id
+        );
+
+        const heat = heatMap.get(rawEntry.heat_id);
+
+        const event = heat
+          ? eventMap.get(heat.event_id)
+          : undefined;
+
+        if (!participant || !event) {
+          continue;
+        }
+
+        /*
+         * Live Race Console normally saves the time in `time`.
+         * Support all known result fields.
+         */
+        const timeMs = parseTimeToMs(
+          rawEntry.time ??
+          rawEntry.finish_time ??
+          rawEntry.finish_time_ms
+        );
+
+        /*
+         * A championship medal must come from a valid result.
+         */
+        if (timeMs === null || timeMs <= 0) {
+          continue;
+        }
+
+        const eventId = String(event.id);
+
+        if (!grouped[eventId]) {
+          grouped[eventId] = [];
+        }
+
+        grouped[eventId].push({
+          rawEntry,
+          participant,
+          event,
+          timeMs,
+        });
+      }
+
+      /*
+       * ========================================================
+       * CALCULATE RANK + MEDAL FOR EVERY EVENT
+       * ========================================================
+       *
+       * EXACT SAME PRINCIPLE AS ResultsPage:
+       *
+       * 1. If Admin saved overall_rank, preserve it.
+       * 2. If no saved ranks exist for that event, calculate rank
+       *    from finish time.
+       * 3. Medal is always derived from the final rank when the
+       *    database medal is missing.
+       */
+      const championshipRows: Array<{
+        participant: Participant;
+        event: SwimEvent;
+        clubId: string;
+        rank: number;
+        medal: 'Gold' | 'Silver' | 'Bronze' | null;
+      }> = [];
+
+      Object.values(grouped).forEach((eventRows: any[]) => {
+        eventRows.sort((a, b) => {
+          const rankA = a.rawEntry.overall_rank;
+          const rankB = b.rawEntry.overall_rank;
+
+          if (rankA !== null && rankA !== undefined &&
+              rankB !== null && rankB !== undefined) {
+            return Number(rankA) - Number(rankB);
+          }
+
+          return a.timeMs - b.timeMs;
+        });
+
+        const hasSavedRanks = eventRows.some(
+          (row) =>
+            row.rawEntry.overall_rank !== null &&
+            row.rawEntry.overall_rank !== undefined
+        );
+
+        eventRows.forEach((row, index) => {
+          const rank = hasSavedRanks
+            ? (
+                row.rawEntry.overall_rank !== null &&
+                row.rawEntry.overall_rank !== undefined
+                  ? Number(row.rawEntry.overall_rank)
+                  : index + 1
+              )
+            : index + 1;
+
+          /*
+           * NEVER depend only on rawEntry.medal.
+           * If it is missing, derive it from the final position.
+           */
+          let medal: 'Gold' | 'Silver' | 'Bronze' | null =
+            row.rawEntry.medal === 'Gold' ||
+            row.rawEntry.medal === 'Silver' ||
+            row.rawEntry.medal === 'Bronze'
+              ? row.rawEntry.medal
+              : null;
+
+          if (!medal) {
+            medal =
+              rank === 1
+                ? 'Gold'
+                : rank === 2
+                ? 'Silver'
+                : rank === 3
+                ? 'Bronze'
+                : null;
+          }
+
+          if (!row.participant.club_id) {
+            return;
+          }
+
+          /*
+           * Only medal positions contribute to the Championship.
+           */
+          if (!medal) {
+            return;
+          }
+
+          championshipRows.push({
+            participant: row.participant,
+            event: row.event,
+            clubId: row.participant.club_id,
+            rank,
+            medal,
+          });
+        });
+      });
+
+      /*
+       * ========================================================
        * CALCULATE CLUB POINTS
        * ========================================================
+       *
+       * Gold   = 5
+       * Silver = 3
+       * Bronze = 1
+       *
+       * Under-10 = 0
        */
       const clubPointsMap =
         new Map<string, ClubPoints>();
 
-      for (const entry of entries as any[]) {
-        const participant = participantMap.get(
-          entry.participant_id
-        );
-
-        if (!participant || !participant.club_id) {
-          continue;
-        }
-
-        const heat = heatMap.get(
-          entry.heat_id
-        );
-
-        if (!heat) {
-          continue;
-        }
-
-        const event = eventMap.get(
-          heat.event_id
-        );
-
-        if (!event) {
-          continue;
-        }
-
+      for (const row of championshipRows) {
         /*
-         * ======================================================
-         * UNDER 10 EXCLUSION
-         * ======================================================
-         *
-         * Under-10 swimmers receive NO championship points.
-         *
-         * Their results can still exist normally.
+         * Under-10 results are deliberately excluded.
          */
-        if (isUnder10(event.age_group)) {
+        if (isUnder10(row.event.age_group)) {
           continue;
         }
 
-        /*
-         * ======================================================
-         * MEDAL
-         * ======================================================
-         */
-        const medal = entry.medal;
+        const club = clubMap.get(row.clubId);
 
-        /*
-         * Only Gold, Silver and Bronze score points.
-         */
-        if (
-          medal !== 'Gold' &&
-          medal !== 'Silver' &&
-          medal !== 'Bronze'
-        ) {
+        if (!club) {
           continue;
         }
 
-        const points =
-          MEDAL_POINTS[medal];
-
-        const clubId =
-          participant.club_id;
-
-        /*
-         * Create club record if it doesn't exist.
-         */
-        if (!clubPointsMap.has(clubId)) {
-          const club = clubMap.get(clubId);
-
-          if (!club) {
-            continue;
-          }
-
+        if (!clubPointsMap.has(row.clubId)) {
           clubPointsMap.set(
-            clubId,
+            row.clubId,
             {
               club,
               points: 0,
@@ -337,26 +473,17 @@ export default function ChampionshipPage({
         }
 
         const clubPoints =
-          clubPointsMap.get(clubId)!;
+          clubPointsMap.get(row.clubId)!;
 
-        /*
-         * Add championship points.
-         */
-        clubPoints.points += points;
-
-        /*
-         * Count medals.
-         */
-        if (medal === 'Gold') {
-          clubPoints.gold++;
-        }
-
-        if (medal === 'Silver') {
-          clubPoints.silver++;
-        }
-
-        if (medal === 'Bronze') {
-          clubPoints.bronze++;
+        if (row.medal === 'Gold') {
+          clubPoints.points += MEDAL_POINTS.Gold;
+          clubPoints.gold += 1;
+        } else if (row.medal === 'Silver') {
+          clubPoints.points += MEDAL_POINTS.Silver;
+          clubPoints.silver += 1;
+        } else if (row.medal === 'Bronze') {
+          clubPoints.points += MEDAL_POINTS.Bronze;
+          clubPoints.bronze += 1;
         }
       }
 
