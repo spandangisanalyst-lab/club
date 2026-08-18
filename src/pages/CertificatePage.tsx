@@ -808,7 +808,7 @@ export default function CertificatePage({ settings }: Props) {
        * ========================================================
        */
 
-      drawCenteredText(
+          drawCenteredText(
         data.participant.name,
         W * (745 / 1491),
         H * (490 / 1055),
@@ -875,18 +875,12 @@ export default function CertificatePage({ settings }: Props) {
 
       let positionText = '—';
 
-      if (position) {
-        const suffix =
-          position === 1
-            ? 'st'
-            : position === 2
-            ? 'nd'
-            : position === 3
-            ? 'rd'
-            : 'th';
-
-        positionText =
-          `${position}${suffix} Position`;
+      if (position === 1) {
+        positionText = '1st Position';
+      } else if (position === 2) {
+        positionText = '2nd Position';
+      } else if (position === 3) {
+        positionText = '3rd Position';
       }
 
       drawCenteredText(
@@ -899,7 +893,6 @@ export default function CertificatePage({ settings }: Props) {
         '#111827',
         '500'
       );
-
       /*
        * ========================================================
        * DOWNLOAD PNG
