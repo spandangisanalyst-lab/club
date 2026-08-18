@@ -350,12 +350,6 @@ export default function CertificatePage({ settings }: Props) {
           )
         );
 
-      /*
-       * ========================================================
-       * BUILD CERTIFICATE RESULTS
-       * ========================================================
-       */
-
       const rows: CertData[] = [];
 
       for (
@@ -381,18 +375,6 @@ export default function CertificatePage({ settings }: Props) {
           continue;
         }
 
-        /*
-         * IMPORTANT:
-         *
-         * Results page uses:
-         *
-         * entry.time
-         *
-         * and falls back to:
-         *
-         * finish_time
-         * finish_time_ms
-         */
         const timeMs =
           parseTimeToMs(
             rawEntry.time ??
@@ -400,10 +382,6 @@ export default function CertificatePage({ settings }: Props) {
               rawEntry.finish_time_ms
           );
 
-        /*
-         * Ignore entries without
-         * valid finishing time.
-         */
         if (
           timeMs === null ||
           timeMs <= 0
@@ -437,12 +415,131 @@ export default function CertificatePage({ settings }: Props) {
       }
 
       /*
-       * Sort exactly like Results page:
-       *
-       * Event
-       * then rank
+       * ============================================================
+       * CALCULATE MISSING RANKS
+       * Same logic as ResultsPage
+       * ============================================================
        */
-      rows.sort((a, b) => {
+
+      const groupedByEvent: Record<
+        string,
+        CertData[]
+      > = {};
+
+      for (const row of rows) {
+        const eventId =
+          String(row.event.id);
+
+        if (!groupedByEvent[eventId]) {
+          groupedByEvent[eventId] = [];
+        }
+
+        groupedByEvent[eventId].push(row);
+      }
+
+      const rankedRows: CertData[] = [];
+
+      Object.values(groupedByEvent).forEach(
+        (eventRows) => {
+
+          /*
+           * Existing ranks first.
+           * Missing ranks are ordered by time.
+           */
+          eventRows.sort((a, b) => {
+
+            const rankA =
+              a.entry.overall_rank;
+
+            const rankB =
+              b.entry.overall_rank;
+
+            if (
+              rankA !== null &&
+              rankB !== null
+            ) {
+              return rankA - rankB;
+            }
+
+            if (
+              rankA !== null &&
+              rankB === null
+            ) {
+              return -1;
+            }
+
+            if (
+              rankA === null &&
+              rankB !== null
+            ) {
+              return 1;
+            }
+
+            return (
+              a.entry.finish_time_ms -
+              b.entry.finish_time_ms
+            );
+          });
+
+          /*
+           * Fill missing ranks.
+           * Existing Admin ranks are preserved.
+           */
+          let nextRank = 1;
+
+          eventRows.forEach((row) => {
+
+            if (
+              row.entry.overall_rank !== null &&
+              row.entry.overall_rank !== undefined
+            ) {
+              nextRank = Math.max(
+                nextRank,
+                row.entry.overall_rank + 1
+              );
+
+              return;
+            }
+
+            row.entry.overall_rank =
+              nextRank;
+
+            /*
+             * Also restore medal if missing.
+             */
+            if (
+              nextRank === 1
+            ) {
+              row.entry.medal = 'Gold';
+            } else if (
+              nextRank === 2
+            ) {
+              row.entry.medal = 'Silver';
+            } else if (
+              nextRank === 3
+            ) {
+              row.entry.medal = 'Bronze';
+            } else {
+              row.entry.medal = null;
+            }
+
+            nextRank++;
+          });
+
+          rankedRows.push(
+            ...eventRows
+          );
+        }
+      );
+
+      /*
+       * ============================================================
+       * FINAL SORT
+       * ============================================================
+       */
+
+      rankedRows.sort((a, b) => {
+
         const eventA =
           `${a.event.category || ''}-${a.event.event_name || ''}`;
 
@@ -463,6 +560,7 @@ export default function CertificatePage({ settings }: Props) {
         );
       });
 
+      setAllResults(rankedRows);
       setAllResults(rows);
     } catch (error) {
       console.error(
